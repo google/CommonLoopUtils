@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Implementation for platform functionality when running locally."""
+
 from typing import Any
 
 from absl import logging
@@ -35,11 +37,11 @@ class LocalWorkUnit(WorkUnit):
     return -1
 
   def set_notes(self, msg: str):
-    """Set the notes for this work unit."""
+    """Sets the notes for this work unit."""
     logging.info("Setting work unit notes: %s", msg)
 
   def set_task_status(self, msg: str):
-    """Set the status string for this task."""
+    """Sets the status string for this task."""
     logging.info("Setting task status: %s", msg)
 
   def create_artifact(self, artifact_type: ArtifactType, artifact: Any,

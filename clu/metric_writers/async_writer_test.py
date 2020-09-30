@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for metric writers."""
+"""Tests for AsyncWriter."""
 
 import time
 from unittest import mock

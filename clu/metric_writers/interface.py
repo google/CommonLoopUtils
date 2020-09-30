@@ -12,32 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Metric writers write ML model outputs during model training and evaluation.
+"""Library for unify reporting model metrics across various logging formats.
 
-This module introduces the MetricWriter interface. MetricWriters allow users
-to write out metrics about ML models during training and evaluation (e.g. loss,
-accuracy).
-There is a MetricWriter implementation for each back end (e.g. TensorFlow
-summaries) and classes that work on top other MetricWriter to
-write to multiple writes at once or write asynchronously.
-
-Note: The current interface might not contain write() methods for all possible
-data types. We are open for extending the interface to other data types
-(e.g. audio).
-
-Usage:
-  writer = MyMetricWriterImplementation()
-  # Before training.
-  writer.write_hparams({"learning_rate": 0.001, "batch_size": 64})
-  # Start training loop.
-  for step in range(num_train_steps):
-    loss = train_step()
-    if step % 50 == 0:
-      writer.write_scalars(step, {"loss": loss})
-      accuracy = evaluate()
-      writer.write_scalars(step, {"accuracy": accuracy})
-  # Make sure all values were written.
-  writer.flush()  # or use metric_writers.ensure_flushes() context.
+This library provides a MetricWriter for each logging format (SummyWriter,
+LoggingWriter, etc.) and composing MetricWriter to add support for asynchronous
+logging or writing to multiple formats.
 """
 
 import abc

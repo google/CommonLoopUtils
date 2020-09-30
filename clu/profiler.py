@@ -12,13 +12,34 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Methods for running triggering a profiler for accelerators.
+
+Where results are stored depends on the platform (e.g. TensorBoard).
+"""
+
 import threading
 from typing import Optional
 
-from clu.google import usage_logging
+from absl import flags
+
 import tensorflow as tf
 
 
-start = tf.profiler.experimental.start
-stop = tf.profiler.experimental.stop
+FLAGS = flags.FLAGS
+flags.DEFINE_string("profiler_log_dir", "./profiler_logs",
+                    "Directory where profiler logs are to be stored.")
+
+
+def start(logdir: Optional[str] = None,
+          options: Optional[tf.profiler.experimental.ProfilerOptions] = None):
+  """Starts profiling."""
+  if logdir is None:
+    logdir = FLAGS.profiler_log_dir
+  tf.profiler.experimental.start(logdir=logdir, options=options)
+
+
+def stop():
+  """Stops profiling."""
+  tf.profiler.experimental.stop()
+
 

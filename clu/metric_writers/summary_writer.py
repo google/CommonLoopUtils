@@ -19,7 +19,7 @@ Only works in eager mode.
 
 from typing import Any, Mapping, Optional
 
-from clu.google import usage_logging
+
 from clu.metric_writers import interface
 import numpy as np
 import tensorflow as tf
@@ -36,7 +36,7 @@ class SummaryWriter(interface.MetricWriter):
   def __init__(self, logdir: str):
     super().__init__()
     self._summary_writer = tf.summary.create_file_writer(logdir)
-    usage_logging.log_event("create", "metric_writers.SummaryWriter")
+
 
   def write_scalars(self, step: int, scalars: Mapping[str, Scalar]):
     with self._summary_writer.as_default():
@@ -46,7 +46,7 @@ class SummaryWriter(interface.MetricWriter):
   def write_images(self, step: int, images: Mapping[str, np.ndarray]):
     with self._summary_writer.as_default():
       for key, value in images.items():
-        tf.summary.image(key, value, step=step)
+        tf.summary.image(key, value, step=step, max_outputs=value.shape[0])
 
   def write_texts(self, step: int, texts: Mapping[str, str]):
     with self._summary_writer.as_default():

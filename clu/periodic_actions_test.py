@@ -12,19 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for internal metric writers."""
+"""Tests for perodic actions."""
 
 import time
 from unittest import mock
 
-from clu import hooks
+from absl.testing import parameterized
+from clu import periodic_actions
 import tensorflow as tf
 
 
-class ReportProgressTest(tf.test.TestCase):
+class ReportProgressTest(tf.test.TestCase, parameterized.TestCase):
 
   def test_every_steps(self):
-    hook = hooks.ReportProgress(
+    hook = periodic_actions.ReportProgress(
         every_steps=4, every_secs=None, num_train_steps=10)
     t = time.time()
     with self.assertLogs(level="INFO") as logs:
@@ -41,7 +42,7 @@ class ReportProgressTest(tf.test.TestCase):
     ])
 
   def test_every_secs(self):
-    hook = hooks.ReportProgress(
+    hook = periodic_actions.ReportProgress(
         every_steps=None, every_secs=0.3, num_train_steps=10)
     t = time.time()
     with self.assertLogs(level="INFO") as logs:
@@ -58,13 +59,46 @@ class ReportProgressTest(tf.test.TestCase):
     ])
 
   def test_called_every_step(self):
-    hook = hooks.ReportProgress(every_steps=3, num_train_steps=10)
+    hook = periodic_actions.ReportProgress(every_steps=3, num_train_steps=10)
     t = time.time()
     with self.assertRaisesRegex(ValueError,
                                 "EveryNHook must be called after every step"):
       hook(1, t)
       # Skipping step 2.
       hook(11, t)
+
+  @parameterized.named_parameters(
+      ("_nowait", False),
+      ("_wait", True),
+  )
+  @mock.patch("time.time")
+  def test_named(self, wait_jax_async_dispatch, time_mock):
+    time_mock.return_value = 0
+    hook = periodic_actions.ReportProgress(
+        every_steps=1, every_secs=None, num_train_steps=10)
+    def _wait():
+      # Here we depend on hook._executor=ThreadPoolExecutor(max_workers=1)
+      hook._executor.submit(lambda: None).result()
+    hook(1)
+    with hook.timed("test1", wait_jax_async_dispatch):
+      _wait()
+      time_mock.return_value = 1
+    _wait()
+    with hook.timed("test2", wait_jax_async_dispatch):
+      _wait()
+      time_mock.return_value = 2
+    _wait()
+    with hook.timed("test1", wait_jax_async_dispatch):
+      _wait()
+      time_mock.return_value = 3
+    _wait()
+    time_mock.return_value = 4
+    with self.assertLogs(level="INFO") as logs:
+      hook(2)
+    self.assertEqual(logs.output, [
+        "INFO:absl:Setting work unit notes: 20.0% @2, 0.2 steps/s, ETA: 1 min"
+        " (0 min : 50.0% test1, 25.0% test2)"
+    ])
 
 
 class DummyProfilerSession:
@@ -85,7 +119,7 @@ class DummyProfilerSession:
 
 class ProfileTest(tf.test.TestCase):
 
-  @mock.patch.object(hooks, "profiler", autospec=True)
+  @mock.patch.object(periodic_actions, "profiler", autospec=True)
   def test_every_steps(self, mock_profiler):
     start_steps = []
     stop_steps = []
@@ -99,7 +133,8 @@ class ProfileTest(tf.test.TestCase):
 
     mock_profiler.start.side_effect = add_start_step
     mock_profiler.stop.side_effect = add_stop_step
-    hook = hooks.Profile(num_profile_steps=2, first_profile=3, every_steps=7)
+    hook = periodic_actions.Profile(
+        num_profile_steps=2, first_profile=3, every_steps=7)
     for step in range(1, 18):
       hook(step)
     self.assertAllEqual([3, 7, 14], start_steps)

@@ -12,9 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for summary_writer.py."""
+"""Tests for SummaryWriter."""
 
 import os
+import tempfile
 
 from clu.metric_writers import summary_writer
 import numpy as np
@@ -44,7 +45,7 @@ class SummaryWriterTest(tf.test.TestCase):
 
   def setUp(self):
     super().setUp()
-    self.logdir = self.create_tempdir().full_path
+    self.logdir = tempfile.mkdtemp()
     self.writer = summary_writer.SummaryWriter(self.logdir)
 
   def test_write_histograms(self):

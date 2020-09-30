@@ -12,32 +12,45 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Hooks are actions that are executed during the training loop."""
+"""PeriodicActions execute small actions periodically in the training loop."""
 
 import abc
+import collections
+import concurrent.futures
+import contextlib
+import queue
 import time
 from typing import Optional
 
 from clu import metric_writers
 from clu import platform
 from clu import profiler
-from clu.google import usage_logging
 
-usage_logging.log_import("hooks")
+import jax
+
+
 
 MetricWriter = metric_writers.MetricWriter
 
 
-class Hook(abc.ABC):
-  """Interface for all hooks."""
-
-  @abc.abstractmethod
-  def __call__(self, step: int, t: Optional[float] = None):
-    pass
+@jax.jit
+def _squareit(x):
+  """Minimalistic function for use in _wait_jax_async_dispatch()."""
+  return x**2
 
 
-class EveryNHook(Hook):
-  """Abstract base class for hooks that are executed periodically."""
+def _wait_jax_async_dispatch():
+  """Creates a simple JAX program and waits for its completion.
+
+  Since JAX operations are put in a queue and dispatched one after the other,
+  all previously enqueued computations will be finished after a call to this
+  function.
+  """
+  _squareit(0.).block_until_ready()
+
+
+class PeriodicAction(abc.ABC):
+  """Abstract base class for perodic actions."""
 
   def __init__(self,
                *,
@@ -82,7 +95,7 @@ class EveryNHook(Hook):
     pass
 
 
-class ReportProgress(EveryNHook):
+class ReportProgress(PeriodicAction):
   """This hook will set the progress note on the work unit."""
 
   def __init__(self,
@@ -107,6 +120,12 @@ class ReportProgress(EveryNHook):
     super().__init__(every_steps=every_steps, every_secs=every_secs)
     self._num_train_steps = num_train_steps
     self._writer = writer
+    self._waiting_for_part = collections.defaultdict(queue.Queue)
+    self._time_per_part = collections.defaultdict(float)
+    self._t0 = time.time()
+    # Using max_worker=1 guarantees that the calls to _wait_jax_async_dispatch()
+    # happen sequentially.
+    self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
 
   def _apply_condition(self, step: int, t: float):
     # Always trigger at last step.
@@ -119,13 +138,75 @@ class ReportProgress(EveryNHook):
     eta_seconds = (self._num_train_steps - step) / steps_per_sec
     message = (f"{100 * step / self._num_train_steps:.1f}% @{step}, "
                f"{steps_per_sec:.1f} steps/s, ETA: {eta_seconds / 60:.0f} min")
-    # This should be relative cheap so we can do it in the same main thread.
+    if self._time_per_part:
+      total = time.time() - self._t0
+      message += " ({:.0f} min : {})".format(total / 60, ", ".join(
+          f"{100 * dt / total:.1f}% {name}"
+          for name, dt in sorted(self._time_per_part.items())))
+    # This should be relatively cheap so we can do it in the same main thread.
     platform.work_unit().set_notes(message)
     if self._writer is not None:
       self._writer.write_scalars(step, {"steps_per_sec": steps_per_sec})
 
+  @contextlib.contextmanager
+  def timed(self, name: str, wait_jax_async_dispatch: bool = True):
+    # pylint: disable=g-doc-return-or-yield
+    """Measures time spent in a named part of the training loop.
 
-class Profile(EveryNHook):
+    The reported progress will break down the total time into the different
+    parts spent inside blocks.
+
+    Example:
+
+      report_progress = hooks.ReportProgress()
+      for step, batch in enumerate(train_iter):
+        params = train_step(params, batch)
+        report_progress(step + 1)
+        if (step + 1) % eval_every_steps == 0:
+          with report_progress.timed("eval"):
+            evaluate()
+
+    The above example would result in the progress being reported as something
+    like "10% @1000 ... (5 min : 10% eval)" - assuming that evaluation takes 10%
+    of the entire time in this case.
+
+    Args:
+      name: Name of the part to be measured.
+      wait_jax_async_dispatch: When set to `True`, JAX async dispatch queue will
+        be emptied by creating a new computation and waiting for its completion.
+        This makes sure that previous computations (e.g. the last train step)
+        have actually finished. The same is done before the time is measured.
+        Note that this wait happens in a different thread that is only used for
+        measuring start/stop time of timed parts. In other words, the measured
+        timings reflect the start/stop of the JAX computations within the
+        measured part: the timer is started when the last computation before the
+        block has finished, and the timer is stopped when the last computation
+        from within the block has finished. Note that due to JAX execution these
+        operations asynchronously, the measured time might overlap with non-JAX
+        computations outside the measured block.
+        When set to `False`, then the measured time is of the Python statements
+        within the block.
+        If there are no expensive JAX computations enqueued in JAX's async
+        dispatch queue, then both measurements are identical.
+    """
+    # pylint: enable=g-doc-return-or-yield
+    def start_measurement():
+      if wait_jax_async_dispatch:
+        _wait_jax_async_dispatch()
+      self._waiting_for_part[name].put(time.time())
+    self._executor.submit(start_measurement)
+
+    yield
+
+    def stop_measurement():
+      if wait_jax_async_dispatch:
+        _wait_jax_async_dispatch()
+      dt = time.time() - self._waiting_for_part[name].get()
+      self._time_per_part[name] += dt
+    self._executor.submit(stop_measurement)
+
+
+class Profile(PeriodicAction):
   """This hook collects a profile every time it triggers."""
 
   def __init__(self,

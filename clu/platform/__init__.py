@@ -20,7 +20,7 @@ a platform independent interface for interactions.
 
 import threading
 
-from clu.google import usage_logging
+
 from clu.platform.interface import ArtifactType
 from clu.platform.interface import WorkUnit
 from clu.platform.local import LocalWorkUnit
@@ -35,6 +35,5 @@ def work_unit() -> WorkUnit:
   global _work_unit
   if _work_unit is None:
     with _work_unit_lock:
-      if _work_unit is None:
-        _work_unit = LocalWorkUnit()
+      _work_unit = LocalWorkUnit()
   return _work_unit

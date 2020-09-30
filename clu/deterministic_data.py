@@ -55,14 +55,14 @@ Synopsis for deterministic training with multiple hosts:
 from typing import Callable, Dict, Optional, Sequence, Union
 
 from absl import logging
-from clu.google import usage_logging
+
 import jax
 import jax.numpy as jnp
 import numpy as np
 import tensorflow as tf
 import tensorflow_datasets as tfds
 
-usage_logging.log_import("deterministic_data")
+
 
 Tensor = Union[tf.Tensor, tf.SparseTensor, tf.RaggedTensor]
 Features = Dict[str, Tensor]
@@ -357,21 +357,3 @@ def create_distributed_dataset(
         pad_up_to_batches=pad_up_to_batches)
 
   return strategy.experimental_distribute_datasets_from_function(dataset_fn)
-
-
-def skip_decoders(
-    builder: tfds.core.DatasetBuilder) -> Dict[str, tfds.decode.Decoder]:
-  """Skips decoding of features "image" and "video" (if present).
-
-  The decoders returned by this.function can be used e.g. for the `decoders`
-  argument in the function `create_dataset()`.
-
-  Args:
-    builder: A tensorflow_datasets builder.
-
-  Returns:
-    A dictionary mapping "image" and/or "video" features to the special decoder
-    `tfds.decode.SkipDecoding()` that skips the decoding entirely.
-  """
-  encoded_features = set(builder.info.features) & {"image", "video"}
-  return {k: tfds.decode.SkipDecoding() for k in encoded_features}

@@ -61,11 +61,11 @@ class WorkUnit(abc.ABC):
 
   @abc.abstractmethod
   def set_notes(self, msg: str):
-    """Set the notes for this work unit."""
+    """Sets the notes for this work unit. These are displayed in the UI."""
 
   @abc.abstractmethod
   def set_task_status(self, msg: str):
-    """Set the status string for this task."""
+    """Sets the status string for this task."""
 
   @abc.abstractmethod
   def create_artifact(self, artifact_type: ArtifactType, artifact: Any,

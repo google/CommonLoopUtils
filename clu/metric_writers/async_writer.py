@@ -27,7 +27,7 @@ import sys
 from typing import Any, Mapping, Optional, Sequence
 
 from absl import logging
-from clu.google import usage_logging
+
 from clu.metric_writers import interface
 from clu.metric_writers import multi_writer
 import numpy as np
@@ -51,7 +51,7 @@ class AsyncWriter(interface.MetricWriter):
     self._worker_pool = multiprocessing.pool.ThreadPool(1)
     self._errors = [
     ]  # Tuples returned by sys.exc_info(): (type, value, traceback).
-    usage_logging.log_event("create", "metric_writers.AsyncWriter")
+
 
   def _raise_previous_errors(self):
     while self._errors:
