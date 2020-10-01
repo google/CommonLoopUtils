@@ -23,9 +23,9 @@ class ArtifactType(enum.Enum):
   # A URL for dashboards, etc.
   URL = 1
   # File path.
-  FILE = 10
+  FILE = 2
   # Directory path.
-  DIRECTORY = 11
+  DIRECTORY = 3
 
 
 class WorkUnit(abc.ABC):
