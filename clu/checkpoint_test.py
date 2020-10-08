@@ -64,7 +64,7 @@ class CheckpointTest(tf.test.TestCase):
     self.assertTrue(os.path.isdir(base_dir))
 
   def test_restores_flax_state(self):
-    base_dir = os.path.join(tempfile.mkdtemp())
+    base_dir = tempfile.mkdtemp()
     state = TrainState(step=1)
     ckpt = checkpoint.Checkpoint(base_dir)
     # Initializes.
@@ -83,7 +83,7 @@ class CheckpointTest(tf.test.TestCase):
     self.assertEqual(state.step, 2)
 
   def test_load_state_dict(self):
-    base_dir = os.path.join(tempfile.mkdtemp())
+    base_dir = tempfile.mkdtemp()
     state = TrainState(step=1)
     ckpt = checkpoint.Checkpoint(base_dir)
     # Initializes.
@@ -95,7 +95,7 @@ class CheckpointTest(tf.test.TestCase):
       checkpoint.load_state_dict(tempfile.mkdtemp())
 
   def test_fails_when_restoring_subset(self):
-    base_dir = os.path.join(tempfile.mkdtemp())
+    base_dir = tempfile.mkdtemp()
     state = TrainStateExtended(step=1, name="test")
     ckpt = checkpoint.Checkpoint(base_dir)
     # Initialixes with TrainStateExtended.
@@ -106,7 +106,7 @@ class CheckpointTest(tf.test.TestCase):
       state = ckpt.restore_or_initialize(state)
 
   def test_fails_when_restoring_superset(self):
-    base_dir = os.path.join(tempfile.mkdtemp())
+    base_dir = tempfile.mkdtemp()
     ckpt = checkpoint.Checkpoint(base_dir)
     state = TrainState(step=0)
     # Initialixes with TrainState.
@@ -117,7 +117,7 @@ class CheckpointTest(tf.test.TestCase):
       state = ckpt.restore_or_initialize(state)
 
   def test_restores_tf_state(self):
-    base_dir = os.path.join(tempfile.mkdtemp())
+    base_dir = tempfile.mkdtemp()
     ds_iter = iter(_make_dataset())
     ckpt = checkpoint.Checkpoint(base_dir, dict(ds_iter=ds_iter))
     features0 = next(ds_iter)  # Advance iterator by one.
@@ -148,7 +148,7 @@ class CheckpointTest(tf.test.TestCase):
     self.assertAllEqual(features2["y"], features2_restored["y"])
 
   def test_restore_flax_alone(self):
-    base_dir = os.path.join(tempfile.mkdtemp())
+    base_dir = tempfile.mkdtemp()
     ds_iter = iter(_make_dataset())
     ckpt = checkpoint.Checkpoint(base_dir, dict(ds_iter=ds_iter))
     state = TrainState(step=1)
@@ -161,7 +161,7 @@ class CheckpointTest(tf.test.TestCase):
     self.assertEqual(state.step, 1)
 
   def test_ignores_incomplete_checkpoint(self):
-    base_dir = os.path.join(tempfile.mkdtemp())
+    base_dir = tempfile.mkdtemp()
     state = TrainState(step=1)
     ckpt = checkpoint.Checkpoint(base_dir)
     # Initializes.
@@ -197,7 +197,7 @@ class CheckpointTest(tf.test.TestCase):
     self.assertEqual(state.step, 2)
 
   def test_max_to_keep(self):
-    base_dir = os.path.join(tempfile.mkdtemp())
+    base_dir = tempfile.mkdtemp()
     state = TrainState(step=1)
     ckpt = checkpoint.Checkpoint(base_dir, max_to_keep=1)
     state = ckpt.restore_or_initialize(state)
@@ -210,18 +210,29 @@ class CheckpointTest(tf.test.TestCase):
     self.assertNotEqual(files1, files2)
 
   def test_checkpoint_name(self):
-    base_dir = os.path.join(tempfile.mkdtemp())
+    base_dir = tempfile.mkdtemp()
     state = TrainState(step=1)
     ckpt = checkpoint.Checkpoint(base_dir, checkpoint_name="test")
     path = ckpt.save(state)
     self.assertIn("test", path)
 
   def test_fails_if_not_registered(self):
-    base_dir = os.path.join(tempfile.mkdtemp())
+    base_dir = tempfile.mkdtemp()
     not_state = NotTrainState()
     ckpt = checkpoint.Checkpoint(base_dir)
     with self.assertRaisesRegexp(TypeError, r"serialize"):
       ckpt.restore_or_initialize(not_state)
+
+  def test_fails_if_save_counter_mismatch(self):
+    base_dir = tempfile.mkdtemp()
+    ckpt = checkpoint.Checkpoint(base_dir, max_to_keep=1)
+    state = TrainState(step=1)
+    state = ckpt.restore_or_initialize(state)
+    ckpt.save(state)
+    ckpt = checkpoint.Checkpoint(base_dir, max_to_keep=1)
+    state = TrainState(step=2)
+    with self.assertRaisesRegexp(RuntimeError, r"^Expected.*to match"):
+      ckpt.save(state)
 
 
 class MultihostCheckpoint(tf.test.TestCase):
