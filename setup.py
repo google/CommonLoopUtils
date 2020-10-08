@@ -12,10 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""setup.py for Common Loop Utils."""
+"""setup.py for Common Loop Utils.
+
+Install for development:
+
+  pip intall -e . .[tests]
+"""
 
 from setuptools import find_packages
 from setuptools import setup
+
+tests_require = [
+    "dm-sonnet",
+    "pytest",
+]
 
 setup(
     name="clu",
@@ -36,13 +46,12 @@ setup(
         "jax>=0.1.76",
         "jaxlib",
         "ml_collections",
-        "numpy>=1.12",
+        "numpy==1.18.5",  # required for tenworflow 2.3.1
         "tensorflow",
         "tensorflow_datasets",
     ],
-    tests_require=[
-        "pytest",
-    ],
+    tests_require=tests_require,
+    extras_require=dict(test=tests_require),
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Developers",

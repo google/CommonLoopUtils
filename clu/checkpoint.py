@@ -231,6 +231,10 @@ class Checkpoint:
           CheckpointInfo.initialize(self.base_directory, self.checkpoint_name))
     return str(CheckpointInfo.from_path(checkpoint).increment())
 
+  def _checkpoint_number(self, checkpoint: Optional[str]) -> Optional[int]:
+    if checkpoint is not None:
+      return CheckpointInfo.from_path(checkpoint).number
+
   @utils.logged_with("Checkpoint.save()")
   def save(self, state) -> str:
     """Saves a new checkpoints in the directory.
@@ -240,7 +244,19 @@ class Checkpoint:
 
     Returns:
       The checkpoint identifier ({base_directory}/ckpt-{number}).
+
+    Raises:
+      RuntimeError: If tf_checkpoint.save_counter does not match
+          tf_checkpoint_manager.latest_checkpoint.
     """
+    save_counter = self._checkpoint_number(self.latest_checkpoint) or 0
+    if save_counter != self.tf_checkpoint.save_counter.numpy():
+      raise RuntimeError(
+          "Expected save_counter={self.tf_checkpoint.save_counter.numpy()} "
+          "to match latest_checkpoint={self.latest_checkpoint}. Make sure "
+          "the checkpoint is initialized via `.restore_or_initialize()` "
+          "before it's stored and that no other process writes to the same "
+          "checkpoint directory.")
     next_checkpoint = self._next_checkpoint(self.latest_checkpoint)
     flax_path = self._flax_path(next_checkpoint)
     if not tf.io.gfile.exists(self.base_directory):
