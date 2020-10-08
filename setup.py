@@ -23,6 +23,7 @@ from setuptools import find_packages
 from setuptools import setup
 
 tests_require = [
+    "dm-sonnet",
     "pytest",
 ]
 
