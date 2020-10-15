@@ -29,13 +29,13 @@ class ReportProgressTest(tf.test.TestCase, parameterized.TestCase):
         every_steps=4, every_secs=None, num_train_steps=10)
     t = time.time()
     with self.assertLogs(level="INFO") as logs:
-      hook(1, t)
+      self.assertFalse(hook(1, t))
       t += 0.11
-      hook(2, t)
+      self.assertFalse(hook(2, t))
       t += 0.13
-      hook(3, t)
+      self.assertFalse(hook(3, t))
       t += 0.12
-      hook(4, t)
+      self.assertTrue(hook(4, t))
     # We did 1 step every 0.12s => 8.333 steps/s.
     self.assertEqual(logs.output, [
         "INFO:absl:Setting work unit notes: 40.0% @4, 8.3 steps/s, ETA: 0 min"
@@ -46,13 +46,13 @@ class ReportProgressTest(tf.test.TestCase, parameterized.TestCase):
         every_steps=None, every_secs=0.3, num_train_steps=10)
     t = time.time()
     with self.assertLogs(level="INFO") as logs:
-      hook(1, t)
+      self.assertFalse(hook(1, t))
       t += 0.11
-      hook(2, t)
+      self.assertFalse(hook(2, t))
       t += 0.13
-      hook(3, t)
+      self.assertFalse(hook(3, t))
       t += 0.12
-      hook(4, t)
+      self.assertTrue(hook(4, t))
     # We did 1 step every 0.12s => 8.333 steps/s.
     self.assertEqual(logs.output, [
         "INFO:absl:Setting work unit notes: 40.0% @4, 8.3 steps/s, ETA: 0 min"
@@ -64,8 +64,7 @@ class ReportProgressTest(tf.test.TestCase, parameterized.TestCase):
     with self.assertRaisesRegex(ValueError,
                                 "EveryNHook must be called after every step"):
       hook(1, t)
-      # Skipping step 2.
-      hook(11, t)
+      hook(11, t)  # Raises exception.
 
   @parameterized.named_parameters(
       ("_nowait", False),
@@ -79,7 +78,7 @@ class ReportProgressTest(tf.test.TestCase, parameterized.TestCase):
     def _wait():
       # Here we depend on hook._executor=ThreadPoolExecutor(max_workers=1)
       hook._executor.submit(lambda: None).result()
-    hook(1)
+    self.assertFalse(hook(1))  # Never triggers on first execution.
     with hook.timed("test1", wait_jax_async_dispatch):
       _wait()
       time_mock.return_value = 1
@@ -94,7 +93,7 @@ class ReportProgressTest(tf.test.TestCase, parameterized.TestCase):
     _wait()
     time_mock.return_value = 4
     with self.assertLogs(level="INFO") as logs:
-      hook(2)
+      self.assertTrue(hook(2))
     self.assertEqual(logs.output, [
         "INFO:absl:Setting work unit notes: 20.0% @2, 0.2 steps/s, ETA: 1 min"
         " (0 min : 50.0% test1, 25.0% test2)"
@@ -125,7 +124,8 @@ class ProfileTest(tf.test.TestCase):
     stop_steps = []
     step = 0
 
-    def add_start_step():
+    def add_start_step(logdir):
+      del logdir  # unused
       start_steps.append(step)
 
     def add_stop_step():
