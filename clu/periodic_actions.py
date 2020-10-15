@@ -56,6 +56,15 @@ class PeriodicAction(abc.ABC):
                *,
                every_steps: Optional[int] = None,
                every_secs: Optional[float] = None):
+    """Creates an action that triggers periodically.
+
+    Args:
+      every_steps: If the current step is divisible by `every_steps`, then an
+        action is triggered.
+      every_secs: If no action has triggered for specified `every_secs`, then
+        an action is triggered. Note that the previous action might have been
+        triggered by `every_steps` or by `every_secs`.
+    """
     self._every_steps = every_steps
     self._every_secs = every_secs
     self._previous_step = None
@@ -70,15 +79,24 @@ class PeriodicAction(abc.ABC):
       return True
     return False
 
-  def __call__(self, step: int, t: Optional[float] = None):
-    """Method to call the hook after every training step."""
+  def __call__(self, step: int, t: Optional[float] = None) -> bool:
+    """Method to call the hook after every training step.
+
+    Args:
+      step: Current step.
+      t: Optional timestamp. Will use `time.time()` if not specified.
+
+    Returns:
+      True if the action triggered, False otherwise. Note that the first
+      invocation never triggers.
+    """
     if t is None:
       t = time.time()
     if self._previous_step is None:
       self._previous_step = step
       self._previous_time = t
       self._last_step = step
-      return
+      return False
 
     if self._every_steps is not None:
       if step - self._last_step != 1:
@@ -89,6 +107,8 @@ class PeriodicAction(abc.ABC):
       self._apply(step, t)
       self._previous_step = step
       self._previous_time = t
+      return True
+    return False
 
   @abc.abstractmethod
   def _apply(self, step: int, t: float):
@@ -214,11 +234,23 @@ class Profile(PeriodicAction):
                num_profile_steps: int = 5,
                first_profile: int = 10,
                every_steps: Optional[int] = None,
-               every_secs: Optional[float] = 3600.0):
+               every_secs: Optional[float] = 3600.0,
+               logdir: Optional[str] = None):
+    """Initializes a new periodic profiler action.
+
+    Args:
+      num_profile_steps: Over how many steps the profile should be taken.
+      first_profile: First step at which a profile is started.
+      every_steps: See `PeriodicAction.__init__()`.
+      every_secs: See `PeriodicAction.__init__()`.
+      logdir: Where the profile should be stored (required for
+        `tf.profiler.experimental`).
+    """
     super().__init__(every_steps=every_steps, every_secs=every_secs)
     self._num_profile_steps = num_profile_steps
     self._first_profile = first_profile
     self._session_running = False
+    self._logdir = logdir
 
   def _apply_condition(self, step: int, t: float) -> bool:
     if self._session_running:
@@ -235,7 +267,7 @@ class Profile(PeriodicAction):
 
   def _start_session(self):
     self._session_running = True
-    profiler.start()
+    profiler.start(logdir=self._logdir)
 
   def _end_session(self):
     url = profiler.stop()
