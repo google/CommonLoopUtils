@@ -20,6 +20,7 @@ import time
 
 from absl import logging
 
+import jax.numpy as jnp
 import wrapt
 
 
@@ -49,3 +50,23 @@ def logged_with(activity_name: str):
     with log_activity(activity_name):
       return wrapped(*args, **kwargs)
   return decorator
+
+
+def check_param(value, *, ndim=None, dtype=jnp.float32):
+  """Raises a `ValueError` if `value` does not match ndim/dtype.
+
+  Args:
+    value: Value to be tested.
+    ndim: Expected dimensions.
+    dtype: Expected dtype.
+
+  Raises:
+    A `ValueError` if `value` does not match `ndim` or `dtype`, or if `value`
+    is not an instance of `jnp.ndarray`.
+  """
+  if not isinstance(value, jnp.ndarray):
+    raise ValueError(f"Expected jnp.array, got type={type(value)}")
+  if ndim is not None and value.ndim != ndim:
+    raise ValueError(f"Expected ndim={ndim}, got ndim={value.ndim}")
+  if dtype is not None and value.dtype != dtype:
+    raise ValueError(f"Expected dtype={dtype}, got dtype={value.dtype}")
