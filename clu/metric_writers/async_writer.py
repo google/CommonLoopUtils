@@ -41,14 +41,18 @@ class AsyncWriter(interface.MetricWriter):
   All write operations will be executed in a background thread. If an exceptions
   occurs in the background thread it will be raised on the main thread on the
   call of one of the write_* methods.
+
+  Use num_workers > 1 at your own risk, if the underlying writer is not
+  thread-safe or does not expect out-of-order events, this can cause problems.
   """
 
-  def __init__(self, writer: interface.MetricWriter):
+  def __init__(self, writer: interface.MetricWriter, num_workers: int = 1):
     super().__init__()
     self._writer = writer
-    # We have a thread pool with a single worker to ensure that calls to
-    # the function are run in order (but in a background thread).
-    self._worker_pool = multiprocessing.pool.ThreadPool(1)
+    # By default, we have a thread pool with a single worker to ensure that
+    # calls to the function are run in order (but in a background thread).
+    self._num_workers = num_workers
+    self._worker_pool = multiprocessing.pool.ThreadPool(num_workers)
     self._errors = [
     ]  # Tuples returned by sys.exc_info(): (type, value, traceback).
 
@@ -105,7 +109,7 @@ class AsyncWriter(interface.MetricWriter):
     self._worker_pool.close()
     self._worker_pool.join()
     self._writer.flush()
-    self._worker_pool = multiprocessing.pool.ThreadPool(1)
+    self._worker_pool = multiprocessing.pool.ThreadPool(self._num_workers)
 
 
 class AsyncMultiWriter(AsyncWriter):

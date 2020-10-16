@@ -16,6 +16,7 @@ from unittest import mock
 
 from absl.testing import absltest
 from clu.internal import utils
+import jax.numpy as jnp
 
 
 class TestError(BaseException):
@@ -73,6 +74,17 @@ class HelpersTest(absltest.TestCase):
     self.assertEqual(logs.output[0], "INFO:absl:test_activity ...")
     self.assertRegex(logs.output[1],
                      r"^ERROR:absl:test_activity FAILED after \d+.\d\ds")
+
+  def test_check_param(self):
+    a = jnp.array(0.)
+    with self.assertRaisesRegex(ValueError, r"^Expected jnp.array"):
+      utils.check_param(None, ndim=1)
+    with self.assertRaisesRegex(ValueError, r"^Expected ndim"):
+      utils.check_param(a, ndim=1)
+    with self.assertRaisesRegex(ValueError, r"^Expected dtype"):
+      utils.check_param(a, ndim=0, dtype=jnp.int32)
+    utils.check_param(a, ndim=0)  # should work
+    utils.check_param(a, ndim=0, dtype=jnp.float32)  # should also work
 
 
 if __name__ == "__main__":
