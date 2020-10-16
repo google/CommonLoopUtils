@@ -124,7 +124,8 @@ class ProfileTest(tf.test.TestCase):
     stop_steps = []
     step = 0
 
-    def add_start_step():
+    def add_start_step(logdir):
+      del logdir  # unused
       start_steps.append(step)
 
     def add_stop_step():

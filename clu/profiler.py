@@ -20,21 +20,16 @@ Where results are stored depends on the platform (e.g. TensorBoard).
 import threading
 from typing import Optional
 
-from absl import flags
 
 import tensorflow as tf
 
-
-FLAGS = flags.FLAGS
-flags.DEFINE_string("profiler_log_dir", "./profiler_logs",
-                    "Directory where profiler logs are to be stored.")
 
 
 def start(logdir: Optional[str] = None,
           options: Optional[tf.profiler.experimental.ProfilerOptions] = None):
   """Starts profiling."""
   if logdir is None:
-    logdir = FLAGS.profiler_log_dir
+    raise ValueError("Must specify logdir for tf.profiler!")
   tf.profiler.experimental.start(logdir=logdir, options=options)
 
 

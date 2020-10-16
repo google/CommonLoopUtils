@@ -234,11 +234,23 @@ class Profile(PeriodicAction):
                num_profile_steps: int = 5,
                first_profile: int = 10,
                every_steps: Optional[int] = None,
-               every_secs: Optional[float] = 3600.0):
+               every_secs: Optional[float] = 3600.0,
+               logdir: Optional[str] = None):
+    """Initializes a new periodic profiler action.
+
+    Args:
+      num_profile_steps: Over how many steps the profile should be taken.
+      first_profile: First step at which a profile is started.
+      every_steps: See `PeriodicAction.__init__()`.
+      every_secs: See `PeriodicAction.__init__()`.
+      logdir: Where the profile should be stored (required for
+        `tf.profiler.experimental`).
+    """
     super().__init__(every_steps=every_steps, every_secs=every_secs)
     self._num_profile_steps = num_profile_steps
     self._first_profile = first_profile
     self._session_running = False
+    self._logdir = logdir
 
   def _apply_condition(self, step: int, t: float) -> bool:
     if self._session_running:
@@ -255,7 +267,7 @@ class Profile(PeriodicAction):
 
   def _start_session(self):
     self._session_running = True
-    profiler.start()
+    profiler.start(logdir=self._logdir)
 
   def _end_session(self):
     url = profiler.stop()
