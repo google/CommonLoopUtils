@@ -168,7 +168,7 @@ def create_dataset(dataset_builder,
                    *,
                    split: Union[str, tfds.core.ReadInstruction],
                    batch_dims: Sequence[int] = (),
-                   rng: Optional[jnp.ndarray] = None,
+                   rng: Union[None, jnp.ndarray, tf.Tensor] = None,
                    filter_fn: Optional[Callable[[Features], bool]] = None,
                    preprocess_fn: Optional[Callable[[Features],
                                                     Features]] = None,
@@ -192,8 +192,9 @@ def create_dataset(dataset_builder,
     batch_dims: List of size of batch dimensions. Multiple batch dimension can
       be used to provide inputs for multiple devices. E.g.
       [jax.local_device_count(), batch_size // jax.device_count()].
-    rng: A jax.random.PRNG key to use of seeding shuffle operations and
-      preprocessing ops. Must be set if shuffling.
+    rng: A jax.random.PRNG key or a tf.Tensor for TF stateless seeds to use of
+      seeding shuffle operations and preprocessing ops. Must be set if
+      shuffling.
     filter_fn: Optional function to filter the decoded examples. This happens
       before the preprocessing.
     preprocess_fn: Function for preprocessing individual examples (which should
@@ -223,7 +224,10 @@ def create_dataset(dataset_builder,
   if not rng_available and shuffle:
     raise ValueError("Please set 'rng' when shuffling.")
   if rng_available:
-    rngs = list(jax.random.split(rng, 3))
+    if isinstance(rng, tf.Tensor):
+      rngs = [x.numpy() for x in tf.random.experimental.stateless_split(rng, 3)]
+    else:
+      rngs = list(jax.random.split(rng, 3))
   else:
     rngs = 3 * [[None, None]]
 
@@ -279,13 +283,17 @@ def create_dataset(dataset_builder,
   return ds.prefetch(prefetch_size)
 
 
+StrOrReadInstruction = Union[str, tfds.core.ReadInstruction]
+
+
 def create_distributed_dataset(
     dataset_builder,
     *,
-    split: Union[str, tfds.core.ReadInstruction],
+    split: Union[StrOrReadInstruction, Callable[[int, int],
+                                                StrOrReadInstruction]],
     global_batch_size: int,
     strategy: tf.distribute.Strategy,
-    rng: Optional[jnp.ndarray] = None,
+    rng: Optional[tf.Tensor] = None,
     filter_fn: Optional[Callable[[Features], bool]] = None,
     preprocess_fn: Optional[Callable[[Features], Features]] = None,
     decoders: Optional[Dict[str, tfds.decode.Decoder]] = None,
@@ -300,10 +308,12 @@ def create_distributed_dataset(
   Args:
     dataset_builder: Dataset builder object with a as_dataset() method. E.g.
       instance of `tfds.core.DatasetBuilder` as returned by `tfds.builder(...)`.
-    split: Split name to use, will be passed to as_dataset().
+    split: Split name to use, will be passed to as_dataset(). To read different
+      data chunks on different replicas pass a callable that accepts the host_id
+      and host_count and returns a split name.
     global_batch_size: Global batch size for all input pipelines together.
     strategy: Distribution strategy for distributing the dataset.
-    rng: A jax.random.PRNG key to use of seeding shuffle operations and
+    rng: A tf.Tensor with a stateless random key to seed shuffle operations and
       preprocessing ops.
     filter_fn: Optional function to filter the decoded examples. This happens
       before the preprocessing.
@@ -338,12 +348,21 @@ def create_distributed_dataset(
     if rng is None:
       local_rng = None
     else:
-      local_rng = jax.random.fold_in(rng, input_context.input_pipeline_id)
+      local_rng = tf.random.experimental.stateless_fold_in(
+          rng, input_context.input_pipeline_id)
+
+    if callable(split):
+      local_split = split(input_context.input_pipeline_id,
+                          input_context.num_input_pipelines)
+    else:
+      local_split = split
+
     per_replica_batch_size = input_context.get_per_replica_batch_size(
         global_batch_size)
+
     return create_dataset(
         dataset_builder=dataset_builder,
-        split=split,
+        split=local_split,
         batch_dims=[per_replica_batch_size],
         rng=local_rng,
         filter_fn=filter_fn,
@@ -356,4 +375,4 @@ def create_distributed_dataset(
         prefetch_size=prefetch_size,
         pad_up_to_batches=pad_up_to_batches)
 
-  return strategy.experimental_distribute_datasets_from_function(dataset_fn)
+  return strategy.distribute_datasets_from_function(dataset_fn)
