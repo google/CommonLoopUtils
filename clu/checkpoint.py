@@ -252,11 +252,11 @@ class Checkpoint:
     save_counter = self._checkpoint_number(self.latest_checkpoint) or 0
     if save_counter != self.tf_checkpoint.save_counter.numpy():
       raise RuntimeError(
-          "Expected save_counter={self.tf_checkpoint.save_counter.numpy()} "
-          "to match latest_checkpoint={self.latest_checkpoint}. Make sure "
-          "the checkpoint is initialized via `.restore_or_initialize()` "
-          "before it's stored and that no other process writes to the same "
-          "checkpoint directory.")
+          f"Expected save_counter={self.tf_checkpoint.save_counter.numpy()} "
+          f"to match latest_checkpoint={self.latest_checkpoint}. Make sure "
+          f"the checkpoint is initialized via `.restore_or_initialize()` "
+          f"before it's stored and that no other process writes to the same "
+          f"checkpoint directory.")
     next_checkpoint = self._next_checkpoint(self.latest_checkpoint)
     flax_path = self._flax_path(next_checkpoint)
     if not tf.io.gfile.exists(self.base_directory):
