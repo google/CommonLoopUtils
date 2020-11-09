@@ -91,7 +91,11 @@ class DeterministicDataTest(tf.test.TestCase, parameterized.TestCase):
         },
     ], list(ds_out))
 
-  def test_create_dataset_padding(self):
+  @parameterized.named_parameters(
+      ("cardinality", True),
+      ("nocardinality", False),
+  )
+  def test_create_dataset_padding(self, cardinality):
     dataset_builder = mock.Mock()
     dataset = tf.data.Dataset.from_tensor_slices(
         dict(x=tf.ones((12, 10)), y=tf.ones(12)))
@@ -104,6 +108,7 @@ class DeterministicDataTest(tf.test.TestCase, parameterized.TestCase):
         num_epochs=1,
         shuffle=False,
         pad_up_to_batches=2,
+        cardinality=12 if cardinality else None,
     )
     ds_iter = iter(ds)
     self.assertAllClose(
@@ -124,6 +129,40 @@ class DeterministicDataTest(tf.test.TestCase, parameterized.TestCase):
         ), next(ds_iter))
     with self.assertRaises(StopIteration):
       next(ds_iter)
+
+  def test_create_dataset_padding_raises_error_cardinality(self):
+    dataset_builder = mock.Mock()
+    dataset = tf.data.Dataset.from_tensor_slices(
+        dict(x=tf.ones((12, 10)), y=tf.ones(12)))
+    dataset = dataset.filter(lambda x: True)
+    dataset_builder.as_dataset.return_value = dataset
+    batch_dims = (2, 5)
+    with self.assertRaisesRegexp(  # pylint: disable=deprecated-method
+        ValueError,
+        r"^Cannot determine dataset cardinality."):
+      deterministic_data.create_dataset(
+          dataset_builder,
+          split="(ignored)",
+          batch_dims=batch_dims,
+          num_epochs=1,
+          shuffle=False,
+          pad_up_to_batches=2,
+          cardinality=None,
+      )
+
+  def test_pad_dataset(self):
+    dataset = tf.data.Dataset.from_tensor_slices(
+        dict(x=tf.ones((12, 10)), y=tf.ones(12)))
+    padded_dataset = deterministic_data.pad_dataset(
+        dataset, batch_dims=[20], pad_up_to_batches=2, cardinality=12)
+    self.assertAllClose(
+        dict(
+            x=tf.concat([tf.ones(
+                (12, 10)), tf.zeros((8, 10))], axis=0),
+            y=tf.concat([tf.ones(12), tf.zeros(8)], axis=0),
+            mask=tf.concat(
+                [tf.ones(12, bool), tf.zeros(8, bool)], axis=0)),
+        next(iter(padded_dataset.batch(20))))
 
 
 if __name__ == "__main__":

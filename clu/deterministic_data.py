@@ -164,6 +164,55 @@ def _preprocess_with_per_example_rng(ds: tf.data.Dataset,
   return ds.enumerate().map(_fn, num_parallel_calls=AUTOTUNE)
 
 
+def pad_dataset(dataset: tf.data.Dataset, *, batch_dims: Sequence[int],
+                pad_up_to_batches: int, cardinality: Optional[int]):
+  """Adds padding to a dataset.
+
+  Args:
+    dataset: The dataset to be padded.
+    batch_dims: List of size of batch dimensions. Multiple batch dimension can
+      be used to provide inputs for multiple devices. E.g.
+      [jax.local_device_count(), batch_size // jax.device_count()].
+    pad_up_to_batches: Set this option to process the entire dataset. When set,
+      then the dataset is first padded to the specified number of batches. A new
+      feature called "mask" is added to every batch. This feature is set to
+      `True` for every example that comes from `dataset_builder`, and to `False`
+      for every example that is padded to get to the specified number of
+      batches. Note that the specified `dataset_builder` and `split` must result
+      in at least `pad_up_to_batches` (possibly partial) batches.
+    cardinality: Number of examples in the dataset. Only needed when the
+      cardinality cannot be retrieved via `ds.cardinalty()` (e.g. because of
+      using `ds.filter()`).
+
+  Returns:
+    The padded dataset, with the added feature "mask" that is set to `True` for
+    examples from the original `dataset` and to `False` for padded examples.
+  """
+  if cardinality is None:
+    cardinality = dataset.cardinality()
+    if cardinality == tf.data.UNKNOWN_CARDINALITY:
+      raise ValueError(
+          "Cannot determine dataset cardinality. This can happen when you use "
+          "a `.filter()` on the dataset. Please provide the cardinality as an "
+          "argument to `create_dataset()`.")
+  features = {
+      name: tf.zeros(spec.shape, spec.dtype)[None]
+      for name, spec in dataset.element_spec.items()
+  }
+  if "mask" in features:
+    raise ValueError("Dataset already contains a feature named \"mask\".")
+  features["mask"] = [False]
+  filler_dataset = tf.data.Dataset.from_tensor_slices(features)
+  dataset = dataset.map(
+      lambda features: dict(mask=True, **features),
+      num_parallel_calls=AUTOTUNE)
+  padding = pad_up_to_batches * np.prod(batch_dims) - int(cardinality)
+  assert padding >= 0, (
+      f"Invalid padding={padding} (batch_dims={batch_dims}, cardinality="
+      f"{cardinality}, pad_up_to_batches={pad_up_to_batches})")
+  return dataset.concatenate(filler_dataset.repeat(padding))
+
+
 def create_dataset(dataset_builder,
                    *,
                    split: Union[str, tfds.core.ReadInstruction],
@@ -178,7 +227,8 @@ def create_dataset(dataset_builder,
                    shuffle: bool = True,
                    shuffle_buffer_size: int = 10_000,
                    prefetch_size: int = 4,
-                   pad_up_to_batches: Optional[int] = None) -> tf.data.Dataset:
+                   pad_up_to_batches: Optional[int] = None,
+                   cardinality: Optional[int] = None) -> tf.data.Dataset:
   """Create standard input pipeline (shuffle, preprocess, batch).
 
   Args:
@@ -216,6 +266,9 @@ def create_dataset(dataset_builder,
       for every example that is padded to get to the specified number of
       batches. Note that the specified `dataset_builder` and `split` must result
       in at least `pad_up_to_batches` (possibly partial) batches.
+    cardinality: Number of examples in the dataset. Only needed when
+      `pad_up_to_batches` is specified and the cardinality cannot be retrieved
+      via `ds.cardinalty()` (e.g. because of `ds.filter()`).
 
   Returns:
     The dataset with preprocessed and batched examples.
@@ -260,21 +313,11 @@ def create_dataset(dataset_builder,
       ds = ds.map(preprocess_fn, num_parallel_calls=AUTOTUNE)
 
   if pad_up_to_batches:
-    filler_ds = tf.data.Dataset.from_tensor_slices(
-        dict(
-            **{
-                name: tf.zeros(spec.shape, spec.dtype)[None]
-                for name, spec in ds.element_spec.items()
-            },
-            mask=[False]))
-    ds = ds.map(
-        lambda features: dict(mask=True, **features),
-        num_parallel_calls=AUTOTUNE)
-    padding = pad_up_to_batches * np.prod(batch_dims) - int(ds.cardinality())
-    assert padding >= 0, (
-        f"Invalid padding={padding} (batch_dims={batch_dims}, cardinality="
-        f"{ds.cardinality()}, pad_up_to_batches={pad_up_to_batches})")
-    ds = ds.concatenate(filler_ds.repeat(padding))
+    ds = pad_dataset(
+        ds,
+        batch_dims=batch_dims,
+        pad_up_to_batches=pad_up_to_batches,
+        cardinality=cardinality)
 
   if batch_dims:
     for batch_size in reversed(batch_dims):
@@ -302,7 +345,8 @@ def create_distributed_dataset(
     shuffle: bool = True,
     shuffle_buffer_size: int = 10_000,
     prefetch_size: int = 4,
-    pad_up_to_batches: Optional[int] = None) -> tf.data.Dataset:
+    pad_up_to_batches: Optional[int] = None,
+    cardinality: Optional[int] = None) -> tf.data.Dataset:
   """Create standard input pipeline (shuffle, preprocess, batch).
 
   Args:
@@ -336,6 +380,9 @@ def create_distributed_dataset(
       for every example that is padded to get to the specified number of
       batches. Note that the specified `dataset_builder` and `split` must
       provide at least `pad_up_to_batches` (possibly partial) batches.
+    cardinality: Number of examples in the dataset. Only needed when
+      `pad_up_to_batches` is specified and the cardinality cannot be retrieved
+      via `ds.cardinalty()` (e.g. because of `ds.filter()`).
 
   Returns:
     The dataset with preprocessed and batched examples.
@@ -373,6 +420,7 @@ def create_distributed_dataset(
         shuffle=shuffle,
         shuffle_buffer_size=shuffle_buffer_size,
         prefetch_size=prefetch_size,
-        pad_up_to_batches=pad_up_to_batches)
+        pad_up_to_batches=pad_up_to_batches,
+        cardinality=cardinality)
 
   return strategy.distribute_datasets_from_function(dataset_fn)
