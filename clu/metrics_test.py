@@ -159,7 +159,7 @@ class MetricsTest(tf.test.TestCase, parameterized.TestCase):
   def test_merge_asserts_shape(self, metric_cls):
     metric1 = metric_cls.from_model_output(jnp.arange(3.))
     metric2 = jax.tree_multimap(lambda *args: jnp.stack(args), metric1, metric1)
-    with self.assertRaisesRegexp(ValueError, r"^Expected same shape"):  # pylint: disable=deprecated-method
+    with self.assertRaisesRegex(ValueError, r"^Expected same shape"):
       metric1.merge(metric2)
 
   @parameterized.named_parameters(
@@ -174,7 +174,7 @@ class MetricsTest(tf.test.TestCase, parameterized.TestCase):
   def test_last_value_asserts_shape(self):
     metric1 = metrics.LastValue.from_model_output(jnp.arange(3.))
     metric2 = jax.tree_multimap(lambda *args: jnp.stack(args), metric1, metric1)
-    with self.assertRaisesRegexp(ValueError, r"^Expected same shape"):  # pylint: disable=deprecated-method
+    with self.assertRaisesRegex(ValueError, r"^Expected same shape"):
       metric1.merge(metric2)
 
   @parameterized.named_parameters(
@@ -264,8 +264,8 @@ class MetricsTest(tf.test.TestCase, parameterized.TestCase):
         for model_output in self.model_outputs
     ]
     collection = jax.tree_multimap(lambda *args: jnp.stack(args), *collections)
-    with self.assertRaisesRegexp(ValueError,  # pylint: disable=deprecated-method
-                                 r"^Collection is still replicated"):
+    with self.assertRaisesRegex(ValueError,
+                                r"^Collection is still replicated"):
       collection.compute()
 
   def test_collecting_metric(self):

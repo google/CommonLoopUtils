@@ -91,7 +91,7 @@ class CheckpointTest(tf.test.TestCase):
     # Load via load_state_dict().
     flax_dict = checkpoint.load_state_dict(base_dir)
     self.assertEqual(flax_dict, dict(step=1))
-    with self.assertRaisesRegexp(FileNotFoundError, r"^No checkpoint found"):
+    with self.assertRaisesRegex(FileNotFoundError, r"^No checkpoint found"):
       checkpoint.load_state_dict(tempfile.mkdtemp())
 
   def test_fails_when_restoring_subset(self):
@@ -102,7 +102,7 @@ class CheckpointTest(tf.test.TestCase):
     state = ckpt.restore_or_initialize(state)
     state = TrainState(step=0)
     # Restores with TrainState.
-    with self.assertRaisesRegexp(ValueError, r"^Unknown field"):
+    with self.assertRaisesRegex(ValueError, r"^Unknown field"):
       state = ckpt.restore_or_initialize(state)
 
   def test_fails_when_restoring_superset(self):
@@ -113,7 +113,7 @@ class CheckpointTest(tf.test.TestCase):
     state = ckpt.restore_or_initialize(state)
     state = TrainStateExtended(step=1, name="test")
     # Restores with TrainStateExtended.
-    with self.assertRaisesRegexp(ValueError, r"^Missing field"):
+    with self.assertRaisesRegex(ValueError, r"^Missing field"):
       state = ckpt.restore_or_initialize(state)
 
   def test_restores_tf_state(self):
@@ -173,8 +173,8 @@ class CheckpointTest(tf.test.TestCase):
     state = TrainState(step=2)
     # Failed save : step=2 is stored, but TensorFlow checkpoint fails.
     ckpt.tf_checkpoint_manager.save = None
-    with self.assertRaisesRegexp(TypeError,
-                                 r"'NoneType' object is not callable"):
+    with self.assertRaisesRegex(TypeError,
+                                r"'NoneType' object is not callable"):
       ckpt.save(state)
     files = os.listdir(base_dir)
     self.assertIn("ckpt-2.flax", files)
@@ -220,7 +220,7 @@ class CheckpointTest(tf.test.TestCase):
     base_dir = tempfile.mkdtemp()
     not_state = NotTrainState()
     ckpt = checkpoint.Checkpoint(base_dir)
-    with self.assertRaisesRegexp(TypeError, r"serialize"):
+    with self.assertRaisesRegex(TypeError, r"serialize"):
       ckpt.restore_or_initialize(not_state)
 
   def test_fails_if_save_counter_mismatch(self):
@@ -231,7 +231,7 @@ class CheckpointTest(tf.test.TestCase):
     ckpt.save(state)
     ckpt = checkpoint.Checkpoint(base_dir, max_to_keep=1)
     state = TrainState(step=2)
-    with self.assertRaisesRegexp(RuntimeError, r"^Expected.*to match"):
+    with self.assertRaisesRegex(RuntimeError, r"^Expected.*to match"):
       ckpt.save(state)
 
 

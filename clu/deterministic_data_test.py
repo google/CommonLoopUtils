@@ -137,7 +137,7 @@ class DeterministicDataTest(tf.test.TestCase, parameterized.TestCase):
     dataset = dataset.filter(lambda x: True)
     dataset_builder.as_dataset.return_value = dataset
     batch_dims = (2, 5)
-    with self.assertRaisesRegexp(  # pylint: disable=deprecated-method
+    with self.assertRaisesRegex(
         ValueError,
         r"^Cannot determine dataset cardinality."):
       deterministic_data.create_dataset(
