@@ -46,8 +46,8 @@ setup(
         "jax>=0.1.76",
         "jaxlib",
         "ml_collections",
-        "numpy==1.18.5",  # required for tenworflow 2.3.1
-        "tensorflow",
+        "numpy>=1.16.4",
+        "tensorflow>=2.3.0",
         "tensorflow_datasets",
     ],
     tests_require=tests_require,
