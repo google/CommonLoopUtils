@@ -101,5 +101,14 @@ class MetricWriter(abc.ABC):
       hparams: Flat mapping from hyper parameter name to value.
     """
 
+  @abc.abstractmethod
   def flush(self):
     """Tells the MetricWriter to write out any cached values."""
+
+  @abc.abstractmethod
+  def close(self):
+    """Flushes and closes the MetricWriter.
+
+    Calling any method on MetricWriter after MetricWriter.close()
+    is undefined behavior.
+    """

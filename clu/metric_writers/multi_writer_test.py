@@ -46,7 +46,7 @@ class MultiWriterTest(tf.test.TestCase):
               "b": 0.007
           })
       ])
-    w.flush.assert_called()
+      w.flush.assert_called()
 
 
 if __name__ == "__main__":

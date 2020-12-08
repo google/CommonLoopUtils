@@ -80,6 +80,11 @@ class AsyncWriterTest(tf.test.TestCase):
         })
     ])
 
+  def test_flush_before_close(self):
+    self.writer.close()
+    self.sync_writer.flush.assert_called()
+    self.sync_writer.close.assert_called()
+
   def test_reraises_exception(self):
     self.sync_writer.write_scalars.side_effect = ValueError("foo")
     self.writer.write_scalars(0, {"a": 3, "b": 0.15})
