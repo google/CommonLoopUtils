@@ -20,6 +20,7 @@ import jax.numpy as jnp
 
 
 class TestError(BaseException):
+  __test__ = False
   pass
 
 
