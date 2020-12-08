@@ -64,3 +64,9 @@ class SummaryWriter(interface.MetricWriter):
   def write_hparams(self, hparams: Mapping[str, Any]):
     with self._summary_writer.as_default():
       hparams_api.hparams(hparams)
+
+  def flush(self):
+    self._summary_writer.flush()
+
+  def close(self):
+    self._summary_writer.close()

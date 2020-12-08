@@ -54,3 +54,7 @@ class MultiWriter(interface.MetricWriter):
   def flush(self):
     for w in self._writers:
       w.flush()
+
+  def close(self):
+    for w in self._writers:
+      w.close()
