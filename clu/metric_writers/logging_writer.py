@@ -58,9 +58,6 @@ class LoggingWriter(interface.MetricWriter):
   def flush(self):
     logging.flush()
 
-  def close(self):
-    self.flush()
-
 
 def _compute_histogram_as_tf(
     array: np.ndarray,

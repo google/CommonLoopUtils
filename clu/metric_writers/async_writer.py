@@ -111,10 +111,6 @@ class AsyncWriter(interface.MetricWriter):
     self._writer.flush()
     self._worker_pool = multiprocessing.pool.ThreadPool(self._num_workers)
 
-  def close(self):
-    self.flush()
-    self._writer.close()
-
 
 class AsyncMultiWriter(AsyncWriter):
   """AsyncMultiWriter writes to multiple writes in a separate thread."""
