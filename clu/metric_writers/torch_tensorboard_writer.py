@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""MetricWriter for writing to TF summary files.
+"""MetricWriter for Pytorch summary files.
 
-Only works in eager mode. Does not work for Pytorch code, please use
-TorchTensorboardWriter instead.
+Use this writer for the Pytorch-based code.
+
 """
 
 from typing import Any, Mapping, Optional
@@ -23,51 +23,44 @@ from typing import Any, Mapping, Optional
 
 from clu.metric_writers import interface
 import numpy as np
-import tensorflow as tf
-
-from tensorboard.plugins.hparams import api as hparams_api
+from torch.utils import tensorboard
 
 
 Scalar = interface.Scalar
 
 
-class SummaryWriter(interface.MetricWriter):
-  """MetricWriter that writes TF summary files."""
+class TorchTensorboardWriter(interface.MetricWriter):
+  """MetricWriter that writes Pytorch summary files."""
 
   def __init__(self, logdir: str):
     super().__init__()
-    self._summary_writer = tf.summary.create_file_writer(logdir)
+    self._writer = tensorboard.SummaryWriter(log_dir=logdir)
 
 
   def write_scalars(self, step: int, scalars: Mapping[str, Scalar]):
-    with self._summary_writer.as_default():
-      for key, value in scalars.items():
-        tf.summary.scalar(key, value, step=step)
+    for key, value in scalars.items():
+      self._writer.add_scalar(key, value, global_step=step)
 
   def write_images(self, step: int, images: Mapping[str, np.ndarray]):
-    with self._summary_writer.as_default():
-      for key, value in images.items():
-        tf.summary.image(key, value, step=step, max_outputs=value.shape[0])
+    for key, value in images.items():
+      self._writer.add_image(key, value, global_step=step, dataformats="HWC")
 
   def write_texts(self, step: int, texts: Mapping[str, str]):
-    with self._summary_writer.as_default():
-      for key, value in texts.items():
-        tf.summary.text(key, value, step=step)
+    for key, value in texts.items():
+      self._writer.text(key, value, global_step=step)
 
   def write_histograms(self,
                        step: int,
                        arrays: Mapping[str, np.ndarray],
                        num_buckets: Optional[Mapping[str, int]] = None):
-    with self._summary_writer.as_default():
-      for key, value in arrays.items():
-        tf.summary.histogram(key, value, step=step, buckets=num_buckets)
+    # TODO(b/175045211): Implement.
+    pass
 
   def write_hparams(self, hparams: Mapping[str, Any]):
-    with self._summary_writer.as_default():
-      hparams_api.hparams(hparams)
+    self._writer.add_hparams(hparams, {})
 
   def flush(self):
-    self._summary_writer.flush()
+    self._writer.flush()
 
   def close(self):
-    self._summary_writer.close()
+    self._writer.close()

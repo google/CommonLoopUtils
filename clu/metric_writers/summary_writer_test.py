@@ -14,8 +14,8 @@
 
 """Tests for SummaryWriter."""
 
+import collections
 import os
-import tempfile
 
 from clu.metric_writers import summary_writer
 import numpy as np
@@ -41,12 +41,32 @@ def _load_histograms_data(logdir):
   }
 
 
+def _load_scalars_data(logdir: str):
+  """Loads scalar summaries from events in a logdir."""
+  paths = tf.io.gfile.glob(os.path.join(logdir, "events.out.tfevents.*"))
+  data = collections.defaultdict(dict)
+  for path in paths:
+    for event in tf.compat.v1.train.summary_iterator(path):
+      for value in event.summary.value:
+        data[event.step][value.tag] = tf.make_ndarray(value.tensor).flat[0]
+
+  return data
+
+
 class SummaryWriterTest(tf.test.TestCase):
 
   def setUp(self):
     super().setUp()
-    self.logdir = tempfile.mkdtemp()
+    self.logdir = self.get_temp_dir()
     self.writer = summary_writer.SummaryWriter(self.logdir)
+
+  def test_write_scalar(self):
+    self.writer.write_scalars(11, {"a": 0.6, "b": 15})
+    self.writer.write_scalars(20, {"a": 0.8, "b": 12})
+    self.writer.flush()
+    data = _load_scalars_data(self.logdir)
+    self.assertAllClose(data[11], {"a": 0.6, "b": 15})
+    self.assertAllClose(data[20], {"a": 0.8, "b": 12})
 
   def test_write_histograms(self):
     self.writer.write_histograms(

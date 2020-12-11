@@ -29,7 +29,7 @@ tests_require = [
 
 setup(
     name="clu",
-    version="0.0.1-alpha.2",
+    version="0.0.1-alpha.3",
     description=("Set of libraries for ML training loops in JAX."),
     author="Common Loop Utils Authors",
     author_email="no-reply@google.com",
@@ -47,6 +47,7 @@ setup(
         "jaxlib",
         "ml_collections",
         "numpy>=1.16.4",
+        "torch>=1.2.0",
         "tensorflow>=2.3.0",
         "tensorflow_datasets",
     ],
