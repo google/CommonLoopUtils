@@ -73,12 +73,13 @@ class SummaryWriterTest(tf.test.TestCase):
         0, {
             "a": np.asarray([0.3, 0.1, 0.5, 0.7, 0.1]),
             "b": np.asarray([-0.1, 0.3, 0.2, 0.4, 0.4]),
-        }, num_buckets=2)
+        }, num_buckets={"a": 2, "b": 2})
     self.writer.write_histograms(
         2, {
             "a": np.asarray([0.2, 0.4, 0.5, 0.1, -0.1]),
             "b": np.asarray([0.7, 0.3, 0.2, 0.1, 0.0]),
-        }, num_buckets=2)
+        }, num_buckets={"a": 2, "b": 2})
+    self.writer.flush()
     data = _load_histograms_data(self.logdir)
     # In the histograms, each tuple represents
     # (bucket_min, bucket_max, bucket_count), where bucket_min is inclusive and

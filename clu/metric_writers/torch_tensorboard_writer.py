@@ -53,8 +53,10 @@ class TorchTensorboardWriter(interface.MetricWriter):
                        step: int,
                        arrays: Mapping[str, np.ndarray],
                        num_buckets: Optional[Mapping[str, int]] = None):
-    # TODO(b/175045211): Implement.
-    pass
+    for tag, values in arrays.items():
+      bins = None if num_buckets is None else num_buckets.get(tag)
+      self._writer.add_histogram(
+          tag, values, global_step=step, bins="auto", max_bins=bins)
 
   def write_hparams(self, hparams: Mapping[str, Any]):
     self._writer.add_hparams(hparams, {})

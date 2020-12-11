@@ -60,7 +60,8 @@ class SummaryWriter(interface.MetricWriter):
                        num_buckets: Optional[Mapping[str, int]] = None):
     with self._summary_writer.as_default():
       for key, value in arrays.items():
-        tf.summary.histogram(key, value, step=step, buckets=num_buckets)
+        buckets = None if num_buckets is None else num_buckets.get(key)
+        tf.summary.histogram(key, value, step=step, buckets=buckets)
 
   def write_hparams(self, hparams: Mapping[str, Any]):
     with self._summary_writer.as_default():

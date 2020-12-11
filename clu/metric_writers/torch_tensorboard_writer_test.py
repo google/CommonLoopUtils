@@ -16,8 +16,10 @@
 
 import collections
 import os
+from typing import Any, Dict
 
 from clu.metric_writers import torch_tensorboard_writer
+import numpy as np
 import tensorflow as tf
 
 
@@ -29,6 +31,30 @@ def _load_scalars_data(logdir: str):
     for event in tf.compat.v1.train.summary_iterator(path):
       for value in event.summary.value:
         data[event.step][value.tag] = value.simple_value
+
+  return data
+
+
+def _load_histograms_data(logdir: str) -> Dict[int, Dict[str, Any]]:
+  """Loads histograms summaries from events in a logdir.
+
+  Args:
+    logdir: a directory to find logs
+
+  Returns:
+    A generated histograms in a shape step -> tag -> histo.
+  """
+  paths = tf.io.gfile.glob(os.path.join(logdir, "events.out.tfevents.*"))
+  data = {}
+  for path in paths:
+    for event in tf.compat.v1.train.summary_iterator(path):
+      if event.step not in data:
+        data[event.step] = {}
+      step_data = {}
+      for value in event.summary.value:
+        print(" value:", value)
+        step_data[value.tag] = value.histo
+      data[event.step].update(step_data)
 
   return data
 
@@ -47,6 +73,28 @@ class TorchTensorboardWriterTest(tf.test.TestCase):
     data = _load_scalars_data(self.logdir)
     self.assertAllClose(data[11], {"a": 0.6, "b": 15})
     self.assertAllClose(data[20], {"a": 0.8, "b": 12})
+
+  def test_write_histograms(self):
+    self.writer.write_histograms(
+        0, {
+            "a": np.asarray([0.3, 0.1, 0.5, 0.7, 0.1]),
+            "b": np.asarray([-0.1, 0.3, 0.2, 0.4, 0.4]),
+        }, num_buckets={"a": 2, "b": 2})
+    self.writer.write_histograms(
+        2, {
+            "a": np.asarray([0.2, 0.4, 0.5, 0.1, -0.1]),
+            "b": np.asarray([0.7, 0.3, 0.2, 0.1, 0.0]),
+        }, num_buckets={"a": 2, "b": 2})
+    self.writer.flush()
+    data = _load_histograms_data(self.logdir)
+    self.assertNear(data[0]["a"].min, 0.1, 0.001)
+    self.assertNear(data[0]["a"].max, 0.7, 0.001)
+    self.assertNear(data[0]["b"].min, -0.1, 0.001)
+    self.assertNear(data[0]["b"].max, 0.4, 0.001)
+    self.assertNear(data[2]["a"].min, -0.1, 0.001)
+    self.assertNear(data[2]["a"].max, 0.5, 0.001)
+    self.assertNear(data[2]["b"].min, 0.0, 0.001)
+    self.assertNear(data[2]["b"].max, 0.7, 0.001)
 
 
 if __name__ == "__main__":
