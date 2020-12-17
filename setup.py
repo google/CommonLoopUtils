@@ -25,11 +25,15 @@ from setuptools import setup
 tests_require = [
     "dm-sonnet",
     "pytest",
+    "torch>=1.2.0",
+]
+pytorch_require = [
+    "torch>=1.2.0",
 ]
 
 setup(
     name="clu",
-    version="0.0.1-alpha.3",
+    version="0.0.1a3",
     description=("Set of libraries for ML training loops in JAX."),
     author="Common Loop Utils Authors",
     author_email="no-reply@google.com",
@@ -47,12 +51,11 @@ setup(
         "jaxlib",
         "ml_collections",
         "numpy>=1.16.4",
-        "torch>=1.2.0",
         "tensorflow>=2.3.0",
         "tensorflow_datasets",
     ],
     tests_require=tests_require,
-    extras_require=dict(test=tests_require),
+    extras_require=dict(test=tests_require, pytorch=pytorch_require),
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Developers",
