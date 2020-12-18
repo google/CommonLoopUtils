@@ -27,6 +27,7 @@ from clu import platform
 from clu import profiler
 
 import jax
+import jax.numpy as jnp
 
 
 
@@ -46,7 +47,7 @@ def _wait_jax_async_dispatch():
   all previously enqueued computations will be finished after a call to this
   function.
   """
-  _squareit(0.).block_until_ready()
+  _squareit(jnp.array(0.)).block_until_ready()
 
 
 class PeriodicAction(abc.ABC):
