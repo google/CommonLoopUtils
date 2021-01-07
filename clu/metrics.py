@@ -1,4 +1,4 @@
-# Copyright 2020 The CLU Authors.
+# Copyright 2021 The CLU Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -31,8 +31,6 @@ expected to be instances of `jnp.array`.
 
 Synopsis:
 
-  import functools
-
   from clu import metrics
   import flax
   import jax
@@ -43,17 +41,19 @@ Synopsis:
     loss: metrics.Average.from_output("loss")
     loss_std: metrics.Std.from_output("loss")
 
-  @functools.partial(jax.pmap, axis_name="batch")
-  def eval_step(params, inputs, labels):
-    loss, logits = get_loss_and_logits(params)
+  def eval_step(model, variables, inputs, labels):
+    loss, logits = get_loss_and_logits(model, variables, inputs, labels)
     return Metrics.gather_from_model_output(
         loss=loss, logits=logits, labels=labels)
 
-  def evaluate(params, eval_ds):
-    params = flax.jax_utils.replicate(params)
+  p_eval_step = jax.pmap(
+      eval_step, axis_name="batch", static_broadcasted_argnums=0)
+
+  def evaluate(model, p_variables, test_ds):
     metrics = None
-    for inputs, labels in eval_ds:
-      update = flax.jax_utils.unreplicate(eval_step(params, inputs, labels))
+    for inputs, labels in test_ds:
+      update = flax.jax_utils.unreplicate(
+          p_eval_step(model, p_variables, inputs, labels))
       metrics = update if metrics is None else metrics.merge(update)
     return metrics.compute()
 """
