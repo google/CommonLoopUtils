@@ -78,8 +78,8 @@ class PreprocessSpecTest(parameterized.TestCase, tf.test.TestCase):
   def test_pos_and_kw_arg(self):
     with self.assertRaisesRegex(
         ValueError,
-        r"Argument scale to <class '__main__.Rescale'> given both as "
-        r"positional argument \(value: 2\) and keyword argument \(value: 3\)."):
+        r"Rescale'> given both as positional argument \(value: 2\) and keyword "
+        r"argument \(value: 3\)."):
       preprocess_spec.parse_single_preprocess_op("rescale(2, scale=3)",
                                                  dict(all_ops()))
 
