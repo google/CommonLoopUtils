@@ -228,36 +228,53 @@ class ReportProgress(PeriodicAction):
 
 
 class Profile(PeriodicAction):
-  """This hook collects a profile every time it triggers."""
+  """This hook collects calls profiler.start()/stop() every time it triggers.
+
+  """
 
   def __init__(self,
                *,
-               num_profile_steps: int = 5,
+               logdir: str,
+               num_profile_steps: Optional[int] = 5,
+               profile_duration_ms: Optional[int] = 3_000,
                first_profile: int = 10,
                every_steps: Optional[int] = None,
-               every_secs: Optional[float] = 3600.0,
-               logdir: Optional[str] = None):
+               every_secs: Optional[float] = 3600.0
+               ):
     """Initializes a new periodic profiler action.
 
     Args:
-      num_profile_steps: Over how many steps the profile should be taken.
+      logdir: Where the profile should be stored (required for
+        `tf.profiler.experimental`).
+      num_profile_steps: Over how many steps the profile should be taken. Note
+        that when specifying both num_profile_steps and profile_duration_ms then
+        both conditions will be fulfilled.
+      profile_duration_ms: Minimum duration of profile.
       first_profile: First step at which a profile is started.
       every_steps: See `PeriodicAction.__init__()`.
       every_secs: See `PeriodicAction.__init__()`.
-      logdir: Where the profile should be stored (required for
-        `tf.profiler.experimental`).
     """
+    if not num_profile_steps and not profile_duration_ms:
+      raise ValueError(
+          "Must specify num_profile_steps and/or profile_duration_ms.")
     super().__init__(every_steps=every_steps, every_secs=every_secs)
     self._num_profile_steps = num_profile_steps
     self._first_profile = first_profile
+    self._profile_duration_ms = profile_duration_ms
     self._session_running = False
+    self._session_started = None
     self._logdir = logdir
 
   def _apply_condition(self, step: int, t: float) -> bool:
     if self._session_running:
-      if step >= self._previous_step + self._num_profile_steps:
-        self._end_session()
-      return False
+      dt = time.time() - self._session_started
+      cond = (not self._profile_duration_ms or
+              dt * 1e3 >= self._profile_duration_ms)
+      cond &= (not self._num_profile_steps or
+               step >= self._previous_step + self._num_profile_steps)
+      if cond:
+        self._end_session(profiler.stop())
+        return False
     if step == self._first_profile:
       return True
     return super()._apply_condition(step, t)
@@ -268,13 +285,61 @@ class Profile(PeriodicAction):
 
   def _start_session(self):
     self._session_running = True
+    self._session_started = time.time()
     profiler.start(logdir=self._logdir)
 
-  def _end_session(self):
-    url = profiler.stop()
-    if url is not None:
-      platform.work_unit().create_artifact(
-          platform.ArtifactType.URL,
-          url,
-          description=f"[{self._previous_step}] Profile")
+  def _end_session(self, url: Optional[str]):
+    platform.work_unit().create_artifact(
+        platform.ArtifactType.URL,
+        url,
+        description=f"[{self._previous_step}] Profile")
     self._session_running = False
+    self._session_started = None
+
+
+class ProfileAllHosts(PeriodicAction):
+  """This hook collects calls profiler.collect() every time it triggers.
+
+  """
+
+  def __init__(self,
+               *,
+               logdir: str,
+               profile_duration_ms: int = 3_000,
+               first_profile: int = 10,
+               every_steps: Optional[int] = None,
+               every_secs: Optional[float] = 3600.0
+               ):
+    """Initializes a new periodic profiler action.
+
+    Args:
+      logdir: Where the profile should be stored (required for
+        `tf.profiler.experimental`).
+      profile_duration_ms: Duration of profile.
+      first_profile: First step at which a profile is started.
+      every_steps: See `PeriodicAction.__init__()`.
+      every_secs: See `PeriodicAction.__init__()`.
+    """
+    super().__init__(every_steps=every_steps, every_secs=every_secs)
+    self._first_profile = first_profile
+    self._profile_duration_ms = profile_duration_ms
+    self._logdir = logdir
+
+  def _apply_condition(self, step: int, t: float) -> bool:
+    if step == self._first_profile:
+      return True
+    return super()._apply_condition(step, t)
+
+  def _apply(self, step: int, t: float):
+    del step, t  # Unused.
+    self._start_session()
+
+  def _start_session(self):
+    profiler.collect(logdir=self._logdir, callback=self._end_session,
+                     duration_ms=self._profile_duration_ms)
+
+  def _end_session(self, url: Optional[str]):
+    platform.work_unit().create_artifact(
+        platform.ArtifactType.URL,
+        url,
+        description=f"[{self._previous_step}] Profile")

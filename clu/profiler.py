@@ -18,14 +18,15 @@ Where results are stored depends on the platform (e.g. TensorBoard).
 """
 
 import threading
-from typing import Optional
+from typing import Callable, Optional
 
+from absl import logging
 
 import tensorflow as tf
 
 
 
-def start(logdir: Optional[str] = None,
+def start(logdir: str,
           options: Optional[tf.profiler.experimental.ProfilerOptions] = None):
   """Starts profiling."""
   if logdir is None:
@@ -33,8 +34,24 @@ def start(logdir: Optional[str] = None,
   tf.profiler.experimental.start(logdir=logdir, options=options)
 
 
-def stop():
+def stop() -> Optional[str]:
   """Stops profiling."""
   tf.profiler.experimental.stop()
+
+
+CollectCallback = Callable[[Optional[str]], None]
+
+
+def collect(logdir: str,
+            callback: CollectCallback,
+            duration_ms: int = 3_000):
+  """Calls start() followed by stop() after specified duration."""
+  start(logdir)
+
+  def timer_cb():
+    stop()
+    callback(None)
+
+  threading.Timer(duration_ms / 1e3, timer_cb).start()
 
 

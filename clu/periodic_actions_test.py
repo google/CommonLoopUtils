@@ -14,6 +14,7 @@
 
 """Tests for perodic actions."""
 
+import tempfile
 import time
 from unittest import mock
 
@@ -71,8 +72,8 @@ class ReportProgressTest(tf.test.TestCase, parameterized.TestCase):
       ("_wait", True),
   )
   @mock.patch("time.time")
-  def test_named(self, wait_jax_async_dispatch, time_mock):
-    time_mock.return_value = 0
+  def test_named(self, wait_jax_async_dispatch, mock_time):
+    mock_time.return_value = 0
     hook = periodic_actions.ReportProgress(
         every_steps=1, every_secs=None, num_train_steps=10)
     def _wait():
@@ -81,17 +82,17 @@ class ReportProgressTest(tf.test.TestCase, parameterized.TestCase):
     self.assertFalse(hook(1))  # Never triggers on first execution.
     with hook.timed("test1", wait_jax_async_dispatch):
       _wait()
-      time_mock.return_value = 1
+      mock_time.return_value = 1
     _wait()
     with hook.timed("test2", wait_jax_async_dispatch):
       _wait()
-      time_mock.return_value = 2
+      mock_time.return_value = 2
     _wait()
     with hook.timed("test1", wait_jax_async_dispatch):
       _wait()
-      time_mock.return_value = 3
+      mock_time.return_value = 3
     _wait()
-    time_mock.return_value = 4
+    mock_time.return_value = 4
     with self.assertLogs(level="INFO") as logs:
       self.assertTrue(hook(2))
     self.assertEqual(logs.output, [
@@ -119,7 +120,8 @@ class DummyProfilerSession:
 class ProfileTest(tf.test.TestCase):
 
   @mock.patch.object(periodic_actions, "profiler", autospec=True)
-  def test_every_steps(self, mock_profiler):
+  @mock.patch("time.time")
+  def test_every_steps(self, mock_time, mock_profiler):
     start_steps = []
     stop_steps = []
     step = 0
@@ -134,11 +136,39 @@ class ProfileTest(tf.test.TestCase):
     mock_profiler.start.side_effect = add_start_step
     mock_profiler.stop.side_effect = add_stop_step
     hook = periodic_actions.Profile(
-        num_profile_steps=2, first_profile=3, every_steps=7)
+        logdir=tempfile.mkdtemp(),
+        num_profile_steps=2,
+        profile_duration_ms=2_000,
+        first_profile=3,
+        every_steps=7)
+    for step in range(1, 18):
+      mock_time.return_value = step - 0.5 if step == 9 else step
+      hook(step)
+    self.assertAllEqual([3, 7, 14], start_steps)
+    # Note: profiling 7..10 instead of 7..9 because 7..9 took only 1.5 seconds.
+    self.assertAllEqual([5, 10, 16], stop_steps)
+
+
+class ProfileAllHostsTest(tf.test.TestCase):
+
+  @mock.patch.object(periodic_actions, "profiler", autospec=True)
+  def test_every_steps(self, mock_profiler):
+    start_steps = []
+    step = 0
+
+    def profile_collect(logdir, callback, duration_ms):
+      del logdir, callback, duration_ms  # unused
+      start_steps.append(step)
+
+    mock_profiler.collect.side_effect = profile_collect
+    hook = periodic_actions.ProfileAllHosts(
+        logdir=tempfile.mkdtemp(),
+        profile_duration_ms=2_000,
+        first_profile=3,
+        every_steps=7)
     for step in range(1, 18):
       hook(step)
     self.assertAllEqual([3, 7, 14], start_steps)
-    self.assertAllEqual([5, 9, 16], stop_steps)
 
 
 if __name__ == "__main__":
