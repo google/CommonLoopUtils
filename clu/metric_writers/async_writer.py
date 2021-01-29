@@ -116,11 +116,11 @@ class AsyncWriter(interface.MetricWriter):
     self._writer.close()
 
 
-class AsyncMultiWriter(AsyncWriter):
+class AsyncMultiWriter(multi_writer.MultiWriter):
   """AsyncMultiWriter writes to multiple writes in a separate thread."""
 
   def __init__(self, writers: Sequence[interface.MetricWriter]):
-    super().__init__(multi_writer.MultiWriter(writers))
+    super().__init__([AsyncWriter(w) for w in writers])
 
 
 @contextlib.contextmanager
