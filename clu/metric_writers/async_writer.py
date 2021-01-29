@@ -44,9 +44,14 @@ class AsyncWriter(interface.MetricWriter):
 
   Use num_workers > 1 at your own risk, if the underlying writer is not
   thread-safe or does not expect out-of-order events, this can cause problems.
+  If num_workers is None then the ThreadPool will use `os.cpu_count()`
+  processes.
   """
 
-  def __init__(self, writer: interface.MetricWriter, num_workers: int = 1):
+  def __init__(self,
+               writer: interface.MetricWriter,
+               *,
+               num_workers: Optional[int] = 1):
     super().__init__()
     self._writer = writer
     # By default, we have a thread pool with a single worker to ensure that
@@ -119,8 +124,11 @@ class AsyncWriter(interface.MetricWriter):
 class AsyncMultiWriter(multi_writer.MultiWriter):
   """AsyncMultiWriter writes to multiple writes in a separate thread."""
 
-  def __init__(self, writers: Sequence[interface.MetricWriter]):
-    super().__init__([AsyncWriter(w) for w in writers])
+  def __init__(self,
+               writers: Sequence[interface.MetricWriter],
+               *,
+               num_workers: Optional[int] = 1):
+    super().__init__([AsyncWriter(w, num_workers=num_workers) for w in writers])
 
 
 @contextlib.contextmanager
