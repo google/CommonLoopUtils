@@ -39,7 +39,7 @@ class ReportProgressTest(tf.test.TestCase, parameterized.TestCase):
       self.assertTrue(hook(4, t))
     # We did 1 step every 0.12s => 8.333 steps/s.
     self.assertEqual(logs.output, [
-        "INFO:absl:Setting work unit notes: 40.0% @4, 8.3 steps/s, ETA: 0 min"
+        "INFO:absl:Setting work unit notes: 8.3 steps/s, 40.0% @4, ETA: 0 min"
     ])
 
   def test_every_secs(self):
@@ -56,7 +56,31 @@ class ReportProgressTest(tf.test.TestCase, parameterized.TestCase):
       self.assertTrue(hook(4, t))
     # We did 1 step every 0.12s => 8.333 steps/s.
     self.assertEqual(logs.output, [
-        "INFO:absl:Setting work unit notes: 40.0% @4, 8.3 steps/s, ETA: 0 min"
+        "INFO:absl:Setting work unit notes: 8.3 steps/s, 40.0% @4, ETA: 0 min"
+    ])
+
+  def test_without_num_train_steps(self):
+    report = periodic_actions.ReportProgress(every_steps=2)
+    t = time.time()
+    with self.assertLogs(level="INFO") as logs:
+      self.assertFalse(report(1, t))
+      self.assertTrue(report(2, t + 0.12))
+    # We did 1 step in 0.12s => 8.333 steps/s.
+    self.assertEqual(logs.output, [
+        "INFO:absl:Setting work unit notes: 8.3 steps/s"
+    ])
+
+  def test_unknown_cardinality(self):
+    report = periodic_actions.ReportProgress(
+        every_steps=2,
+        num_train_steps=tf.data.UNKNOWN_CARDINALITY)
+    t = time.time()
+    with self.assertLogs(level="INFO") as logs:
+      self.assertFalse(report(1, t))
+      self.assertTrue(report(2, t + 0.12))
+    # We did 1 step in 0.12s => 8.333 steps/s.
+    self.assertEqual(logs.output, [
+        "INFO:absl:Setting work unit notes: 8.3 steps/s"
     ])
 
   def test_called_every_step(self):
@@ -96,7 +120,7 @@ class ReportProgressTest(tf.test.TestCase, parameterized.TestCase):
     with self.assertLogs(level="INFO") as logs:
       self.assertTrue(hook(2))
     self.assertEqual(logs.output, [
-        "INFO:absl:Setting work unit notes: 20.0% @2, 0.2 steps/s, ETA: 1 min"
+        "INFO:absl:Setting work unit notes: 0.2 steps/s, 20.0% @2, ETA: 1 min"
         " (0 min : 50.0% test1, 25.0% test2)"
     ])
 
