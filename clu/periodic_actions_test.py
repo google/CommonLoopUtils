@@ -180,8 +180,8 @@ class ProfileAllHostsTest(tf.test.TestCase):
     start_steps = []
     step = 0
 
-    def profile_collect(logdir, callback, duration_ms):
-      del logdir, callback, duration_ms  # unused
+    def profile_collect(logdir, callback, hosts, duration_ms):
+      del logdir, callback, hosts, duration_ms  # unused
       start_steps.append(step)
 
     mock_profiler.collect.side_effect = profile_collect

@@ -20,7 +20,7 @@ import concurrent.futures
 import contextlib
 import queue
 import time
-from typing import Optional
+from typing import Optional, Sequence
 
 from clu import metric_writers
 from clu import platform
@@ -310,22 +310,24 @@ class ProfileAllHosts(PeriodicAction):
   def __init__(self,
                *,
                logdir: str,
+               hosts: Optional[Sequence[str]] = None,
                profile_duration_ms: int = 3_000,
                first_profile: int = 10,
                every_steps: Optional[int] = None,
-               every_secs: Optional[float] = 3600.0
-               ):
+               every_secs: Optional[float] = 3600.0):
     """Initializes a new periodic profiler action.
 
     Args:
       logdir: Where the profile should be stored (required for
         `tf.profiler.experimental`).
+      hosts: Addresses of the hosts. If omitted will default to the current job.
       profile_duration_ms: Duration of profile.
       first_profile: First step at which a profile is started.
       every_steps: See `PeriodicAction.__init__()`.
       every_secs: See `PeriodicAction.__init__()`.
     """
     super().__init__(every_steps=every_steps, every_secs=every_secs)
+    self._hosts = hosts
     self._first_profile = first_profile
     self._profile_duration_ms = profile_duration_ms
     self._logdir = logdir
@@ -340,8 +342,11 @@ class ProfileAllHosts(PeriodicAction):
     self._start_session()
 
   def _start_session(self):
-    profiler.collect(logdir=self._logdir, callback=self._end_session,
-                     duration_ms=self._profile_duration_ms)
+    profiler.collect(
+        logdir=self._logdir,
+        callback=self._end_session,
+        hosts=self._hosts,
+        duration_ms=self._profile_duration_ms)
 
   def _end_session(self, url: Optional[str]):
     platform.work_unit().create_artifact(
