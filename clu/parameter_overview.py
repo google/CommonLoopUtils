@@ -14,7 +14,7 @@
 
 """Helper function for creating and logging TF/JAX variable overviews."""
 
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 
 from absl import logging
 
@@ -27,6 +27,8 @@ import tensorflow as tf
 
 
 ModuleOrVariables = Union[tf.Module, List[tf.Variable]]
+ParamsContainer = Union[tf.Module, Dict[str, np.ndarray],
+                        Mapping[str, Mapping[str, Any]]]
 
 
 @dataclasses.dataclass
@@ -58,7 +60,7 @@ def flatten_dict(input_dict: Dict[str, Any],
   return output_dict
 
 
-def count_parameters(params: Union[tf.Module, Dict[str, Any]]) -> int:
+def count_parameters(params: ParamsContainer) -> int:
   """Returns the count of variables for the module or parameter dictionary."""
   if isinstance(params, tf.Module):
     return sum(np.prod(v.shape) for v in params.trainable_variables)  # pytype: disable=attribute-error
@@ -74,7 +76,7 @@ def get_params(module: tf.Module) -> Tuple[List[str], List[np.ndarray]]:
 
 
 def get_parameter_rows(
-    params: Union[tf.Module, Dict[str, np.ndarray]],
+    params: ParamsContainer,
     *,
     include_stats: bool = False,
 ) -> List[Union[ParamRow, ParamRowWithStats]]:
@@ -194,7 +196,7 @@ def make_table(
   return "\n".join(lines)
 
 
-def get_parameter_overview(params: Union[tf.Module, Dict[str, np.ndarray]],
+def get_parameter_overview(params: ParamsContainer,
                            *,
                            include_stats: bool = True,
                            max_lines: Optional[int] = None) -> str:
@@ -229,7 +231,7 @@ def get_parameter_overview(params: Union[tf.Module, Dict[str, np.ndarray]],
   return table + f"\nTotal: {total_weights:,}"
 
 
-def log_parameter_overview(params: Union[tf.Module, Dict[str, np.ndarray]],
+def log_parameter_overview(params: ParamsContainer,
                            *,
                            msg: Optional[str] = None):
   """Writes a table with variables name and shapes to INFO log.

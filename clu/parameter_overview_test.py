@@ -59,6 +59,14 @@ FLAX_CONV2D_PARAMETER_OVERVIEW_WITH_STATS = """+-------------+--------------+---
 +-------------+--------------+------+--------+-------+
 Total: 56"""
 
+FLAX_CONV2D_MAPPING_PARAMETER_OVERVIEW_WITH_STATS = """+--------------------+--------------+------+--------+-------+
+| Name               | Shape        | Size | Mean   | Std   |
++--------------------+--------------+------+--------+-------+
+| params/conv/bias   | (2,)         | 2    | 0.0    | 0.0   |
+| params/conv/kernel | (3, 3, 3, 2) | 54   | 0.0562 | 0.188 |
++--------------------+--------------+------+--------+-------+
+Total: 56"""
+
 
 class TfParameterOverviewTest(tf.test.TestCase):
 
@@ -152,6 +160,10 @@ class JaxParameterOverviewTest(tf.test.TestCase):
     self.assertEqual(
         FLAX_CONV2D_PARAMETER_OVERVIEW_WITH_STATS,
         parameter_overview.get_parameter_overview(variables["params"]))
+    print(parameter_overview.get_parameter_overview(variables))
+    self.assertEqual(
+        FLAX_CONV2D_MAPPING_PARAMETER_OVERVIEW_WITH_STATS,
+        parameter_overview.get_parameter_overview(variables))
 
 
 if __name__ == "__main__":
