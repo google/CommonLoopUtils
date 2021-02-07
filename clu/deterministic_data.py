@@ -302,9 +302,10 @@ def create_dataset(dataset_builder,
 
   if cache:
     ds = ds.cache()
-  ds = ds.repeat(num_epochs)
+
   if shuffle:
     ds = ds.shuffle(shuffle_buffer_size, seed=rngs.pop()[0])
+  ds = ds.repeat(num_epochs)
 
   if preprocess_fn is not None:
     if rng_available:
