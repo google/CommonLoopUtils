@@ -206,7 +206,7 @@ def get_parameter_overview(params: ParamsContainer,
     params: Dictionary with parameters as NumPy arrays. The dictionary can be
       nested. Alternatively a `tf.Module` can be provided, in which case the
       `trainable_variables` of the module will be used.
-    include_stats: If True add columns with mean and std for each variable.
+    include_stats: If True, add columns with mean and std for each variable.
     max_lines: If not `None`, the maximum number of variables to include.
 
   Returns:
@@ -233,6 +233,8 @@ def get_parameter_overview(params: ParamsContainer,
 
 def log_parameter_overview(params: ParamsContainer,
                            *,
+                           include_stats: bool = True,
+                           max_lines: Optional[int] = None,
                            msg: Optional[str] = None):
   """Writes a table with variables name and shapes to INFO log.
 
@@ -242,11 +244,14 @@ def log_parameter_overview(params: ParamsContainer,
     params: Dictionary with parameters as NumPy arrays. The dictionary can be
       nested. Alternatively a `tf.Module` can be provided, in which case the
       `trainable_variables` of the module will be used.
+    include_stats: If True, add columns with mean and std for each variable.
+    max_lines: If not `None`, the maximum number of variables to include.
     msg: Message to be logged before the overview.
   """
-  table = get_parameter_overview(params)
+  table = get_parameter_overview(params, include_stats=include_stats,
+                                 max_lines=max_lines)
   lines = [msg] if msg else []
   lines += table.split("\n")
-  # The table can to large to fit into one log entry.
+  # The table can be too large to fit into one log entry.
   for i in range(0, len(lines), 80):
     logging.info("\n%s", "\n".join(lines[i:i + 80]))
