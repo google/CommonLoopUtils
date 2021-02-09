@@ -165,7 +165,7 @@ def _preprocess_with_per_example_rng(ds: tf.data.Dataset,
 
 
 def pad_dataset(dataset: tf.data.Dataset, *, batch_dims: Sequence[int],
-                pad_up_to_batches: int, cardinality: Optional[int]):
+                pad_up_to_batches: int, cardinality: Optional[int] = None):
   """Adds padding to a dataset.
 
   Args:
