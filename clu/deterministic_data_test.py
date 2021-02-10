@@ -164,6 +164,22 @@ class DeterministicDataTest(tf.test.TestCase, parameterized.TestCase):
                 [tf.ones(12, bool), tf.zeros(8, bool)], axis=0)),
         next(iter(padded_dataset.batch(20))))
 
+  def test_pad_nested_dataset(self):
+    dataset = tf.data.Dataset.from_tensor_slices(
+        {"x": {"z": (tf.ones((12, 10)), tf.ones(12))},
+         "y": tf.ones((12, 4))})
+
+    def expected(*dims):
+      return tf.concat([tf.ones((12,) + dims), tf.zeros((8,) + dims)], axis=0)
+
+    padded_dataset = deterministic_data.pad_dataset(
+        dataset, batch_dims=[20], pad_up_to_batches=2, cardinality=12)
+    self.assertAllClose(
+        {"x": {"z": (expected(10), expected())},
+         "y": expected(4),
+         "mask": tf.concat([tf.ones(12, bool), tf.zeros(8, bool)], axis=0)},
+        next(iter(padded_dataset.batch(20))))
+
 
 if __name__ == "__main__":
   tf.test.main()

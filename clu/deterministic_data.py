@@ -188,6 +188,8 @@ def pad_dataset(dataset: tf.data.Dataset, *, batch_dims: Sequence[int],
     The padded dataset, with the added feature "mask" that is set to `True` for
     examples from the original `dataset` and to `False` for padded examples.
   """
+  if not isinstance(dataset.element_spec, dict):
+    raise ValueError("The dataset must have dictionary elements.")
   if cardinality is None:
     cardinality = dataset.cardinality()
     if cardinality == tf.data.UNKNOWN_CARDINALITY:
@@ -195,17 +197,15 @@ def pad_dataset(dataset: tf.data.Dataset, *, batch_dims: Sequence[int],
           "Cannot determine dataset cardinality. This can happen when you use "
           "a `.filter()` on the dataset. Please provide the cardinality as an "
           "argument to `create_dataset()`.")
-  features = {
-      name: tf.zeros(spec.shape, spec.dtype)[None]
-      for name, spec in dataset.element_spec.items()
-  }
-  if "mask" in features:
+  if "mask" in  dataset.element_spec:
     raise ValueError("Dataset already contains a feature named \"mask\".")
-  features["mask"] = [False]
-  filler_dataset = tf.data.Dataset.from_tensor_slices(features)
-  dataset = dataset.map(
-      lambda features: dict(mask=True, **features),
-      num_parallel_calls=AUTOTUNE)
+  filler_element = tf.nest.map_structure(
+      lambda spec: tf.zeros(spec.shape, spec.dtype)[None], dataset.element_spec)
+  filler_element["mask"] = [False]
+  filler_dataset = tf.data.Dataset.from_tensor_slices(filler_element)
+
+  dataset = dataset.map(lambda features: dict(mask=True, **features),
+                        num_parallel_calls=AUTOTUNE)
   padding = pad_up_to_batches * np.prod(batch_dims) - int(cardinality)
   assert padding >= 0, (
       f"Invalid padding={padding} (batch_dims={batch_dims}, cardinality="
