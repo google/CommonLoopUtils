@@ -80,12 +80,13 @@ class PeriodicAction(abc.ABC):
       return True
     return False
 
-  def __call__(self, step: int, t: Optional[float] = None) -> bool:
+  def __call__(self, step: int, t: Optional[float] = None, **kwargs) -> bool:
     """Method to call the hook after every training step.
 
     Args:
       step: Current step.
       t: Optional timestamp. Will use `time.time()` if not specified.
+      **kwargs: Additional arguments to the _apply method.
 
     Returns:
       True if the action triggered, False otherwise. Note that the first
@@ -105,14 +106,14 @@ class PeriodicAction(abc.ABC):
     self._last_step = step
 
     if self._apply_condition(step, t):
-      self._apply(step, t)
+      self._apply(step, t, **kwargs)
       self._previous_step = step
       self._previous_time = t
       return True
     return False
 
   @abc.abstractmethod
-  def _apply(self, step: int, t: float):
+  def _apply(self, step: int, t: float, **kwargs):
     pass
 
 
@@ -157,7 +158,8 @@ class ReportProgress(PeriodicAction):
       return True
     return super()._apply_condition(step, t)
 
-  def _apply(self, step: int, t: float):
+  def _apply(self, step: int, t: float, **kwargs):
+    del kwargs
     steps_per_sec = (step - self._previous_step) / (t - self._previous_time)
     message = f"{steps_per_sec:.1f} steps/s"
     if self._num_train_steps:
@@ -284,8 +286,8 @@ class Profile(PeriodicAction):
       return True
     return super()._apply_condition(step, t)
 
-  def _apply(self, step: int, t: float):
-    del step, t  # Unused.
+  def _apply(self, step: int, t: float, **kwargs):
+    del step, t, kwargs  # Unused.
     self._start_session()
 
   def _start_session(self):
@@ -337,8 +339,8 @@ class ProfileAllHosts(PeriodicAction):
       return True
     return super()._apply_condition(step, t)
 
-  def _apply(self, step: int, t: float):
-    del step, t  # Unused.
+  def _apply(self, step: int, t: float, **kwargs):
+    del step, t, kwargs  # Unused.
     self._start_session()
 
   def _start_session(self):
