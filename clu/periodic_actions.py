@@ -19,19 +19,97 @@ import collections
 import concurrent.futures
 import contextlib
 import queue
+import sys
 import time
-from typing import Optional, Sequence
+from typing import Callable, Optional, Sequence
 
+from absl import logging
 from clu import metric_writers
 from clu import platform
 from clu import profiler
 
 import jax
 import jax.numpy as jnp
+import wrapt
 
 
 
 MetricWriter = metric_writers.MetricWriter
+
+
+def _make_async(thread_name_prefix=""):
+  """Returns a decorator that runs any function it wraps in a background thread.
+
+   When called, the decorated function will immediately return a future
+   representing its result.
+   The function being decorated can be an instance method or normal function.
+   Consecutive calls to the decorated function are guaranteed to be in order
+   and non overlapping.
+   An error raised by the decorated function will be raised in the background
+   thread at call-time. Raising the error in the main thread is deferred until
+   the next call, so as to be non-blocking.
+   All subsequent calls to the decorated function after an error has been
+   raised
+   will not run (regardless of whether the arguments have changed); instead
+   they will re-raise the original error in the main thread.
+
+  Args:
+    thread_name_prefix: Str prefix for the background thread, for easier
+      debugging.
+
+  Returns:
+    decorator that runs any function it wraps in a background thread, and
+    handles any errors raised.
+  """
+  # We have a single thread pool per wrapped function to ensure that calls to
+  # the function are run in order (but in a background thread).
+  pool = concurrent.futures.ThreadPoolExecutor(
+      max_workers=1, thread_name_prefix=thread_name_prefix)
+  errors = []
+
+  @wrapt.decorator
+  def decorator(wrapped, instance, args, kwargs):
+    """Runs wrapped in a background thread so result is non-blocking.
+
+    Args:
+      wrapped: A function to wrap and execute in background thread. Can be
+        instance method or normal function.
+      instance: The object to which the wrapped function was bound when it was
+        called (None if wrapped is a normal function).
+      args: List of position arguments supplied when wrapped function was
+        called.
+      kwargs: Dict of keyword arguments supplied when the wrapped function was
+        called.
+
+    Returns:
+      A future representing the result of calling wrapped.
+    Raises:
+      Exception object caught in background thread, if call to wrapped fails.
+      Exception object with stacktrace in main thread, if the previous call to
+        wrapped failed.
+    """
+
+    def trap_errors(*args, **kwargs):
+      """Wraps wrapped to trap any errors thrown."""
+
+      if errors:
+        # Do not execute wrapped if previous call errored.
+        return
+      try:
+        return wrapped(*args, **kwargs)
+      except Exception as e:
+        errors.append(sys.exc_info())
+        logging.exception("Error in producer thread for %s", thread_name_prefix)
+        raise e
+
+    if errors:
+      # Previous call had an error, re-raise in main thread.
+      exc_info = errors[-1]
+      raise exc_info[1].with_traceback(exc_info[2])
+    del instance
+    return pool.submit(trap_errors, *args, **kwargs)
+
+  return decorator
 
 
 @jax.jit
@@ -51,7 +129,13 @@ def _wait_jax_async_dispatch():
 
 
 class PeriodicAction(abc.ABC):
-  """Abstract base class for perodic actions."""
+  """Abstract base class for perodic actions.
+
+  The idea is that the user creates periodic actions and calls them after
+  each training step. The base class will trigger in fixed step/time interval
+  but subclasses can overwrite `_should_trigger()` to change this behavior.
+  Subclasses must implement `_apply()` to perform the action.
+  """
 
   def __init__(self,
                *,
@@ -68,17 +152,39 @@ class PeriodicAction(abc.ABC):
     """
     self._every_steps = every_steps
     self._every_secs = every_secs
+    # Step and timestamp for the last time the action triggered.
     self._previous_step = None
     self._previous_time = None
+    # Just for checking that __call__() was called every step.
     self._last_step = None
 
-  def _apply_condition(self, step: int, t: float):
+  def _init_and_check(self, step: int, t: float) -> bool:
+    """Initializes and checks it was called at every step."""
+    if self._previous_step is None:
+      self._previous_step = step
+      self._previous_time = t
+      self._last_step = step
+      return False
+    if self._every_steps is not None and step - self._last_step != 1:
+      raise ValueError(f"PeriodicAction must be called after every step once "
+                       f"(every_steps={self._every_steps}, "
+                       f"previous_step={self._previous_step}, step={step}).")
+    self._last_step = step
+    return True
+
+  def _should_trigger(self, step: int, t: float) -> bool:
+    """Return whether the action should trigger this step."""
     if self._every_steps is not None and step % self._every_steps == 0:
       return True
     if (self._every_secs is not None and
         t - self._previous_time > self._every_secs):
       return True
     return False
+
+  def _after_apply(self, step: int, t: float):
+    """Called after each time the action triggered."""
+    self._previous_step = step
+    self._previous_time = t
 
   def __call__(self, step: int, t: Optional[float] = None) -> bool:
     """Method to call the hook after every training step.
@@ -93,21 +199,10 @@ class PeriodicAction(abc.ABC):
     """
     if t is None:
       t = time.time()
-    if self._previous_step is None:
-      self._previous_step = step
-      self._previous_time = t
-      self._last_step = step
-      return False
 
-    if self._every_steps is not None:
-      if step - self._last_step != 1:
-        raise ValueError("EveryNHook must be called after every step (once).")
-    self._last_step = step
-
-    if self._apply_condition(step, t):
+    if self._init_and_check(step, t) and self._should_trigger(step, t):
       self._apply(step, t)
-      self._previous_step = step
-      self._previous_time = t
+      self._after_apply(step, t)
       return True
     return False
 
@@ -151,11 +246,9 @@ class ReportProgress(PeriodicAction):
     # happen sequentially.
     self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
 
-  def _apply_condition(self, step: int, t: float):
+  def _should_trigger(self, step: int, t: float):
     # Always trigger at last step.
-    if step == self._num_train_steps:
-      return True
-    return super()._apply_condition(step, t)
+    return super()._should_trigger(step, t) or step == self._num_train_steps
 
   def _apply(self, step: int, t: float):
     steps_per_sec = (step - self._previous_step) / (t - self._previous_time)
@@ -270,9 +363,10 @@ class Profile(PeriodicAction):
     self._session_started = None
     self._logdir = logdir
 
-  def _apply_condition(self, step: int, t: float) -> bool:
+  def _should_trigger(self, step: int, t: float) -> bool:
     if self._session_running:
-      dt = time.time() - self._session_started
+      # If a session is running we only check if we should stop it.
+      dt = t - self._session_started
       cond = (not self._profile_duration_ms or
               dt * 1e3 >= self._profile_duration_ms)
       cond &= (not self._num_profile_steps or
@@ -280,9 +374,8 @@ class Profile(PeriodicAction):
       if cond:
         self._end_session(profiler.stop())
         return False
-    if step == self._first_profile:
-      return True
-    return super()._apply_condition(step, t)
+    # Allow triggering at `self._first_profile` step.
+    return super()._should_trigger(step, t) or step == self._first_profile
 
   def _apply(self, step: int, t: float):
     del step, t  # Unused.
@@ -332,10 +425,8 @@ class ProfileAllHosts(PeriodicAction):
     self._profile_duration_ms = profile_duration_ms
     self._logdir = logdir
 
-  def _apply_condition(self, step: int, t: float) -> bool:
-    if step == self._first_profile:
-      return True
-    return super()._apply_condition(step, t)
+  def _should_trigger(self, step: int, t: float) -> bool:
+    return super()._should_trigger(step, t) or step == self._first_profile
 
   def _apply(self, step: int, t: float):
     del step, t  # Unused.
@@ -353,3 +444,56 @@ class ProfileAllHosts(PeriodicAction):
         platform.ArtifactType.URL,
         url,
         description=f"[{self._previous_step}] Profile")
+
+
+class PeriodicCallback(PeriodicAction):
+  """This hook calls a callback function each time it triggers."""
+
+  def __init__(self,
+               *,
+               every_steps: Optional[int] = None,
+               every_secs: Optional[float] = None,
+               callback_fn: Callable,
+               execute_async: bool = False,
+               pass_step_and_time: bool = True):
+    """Initializes a new periodic Callback action.
+
+    Args:
+      every_steps: See `PeriodicAction.__init__()`.
+      every_secs: See `PeriodicAction.__init__()`.
+      callback_fn: A callback function. It must accept `step` and `t` as
+        arguments; arguments are passed by keyword.
+      execute_async: if True wraps the callback into an async call.
+      pass_step_and_time: if True the step and t are passed to the callback.
+    """
+    super().__init__(every_steps=every_steps, every_secs=every_secs)
+    self._cb_results = collections.deque(maxlen=1)
+    self.pass_step_and_time = pass_step_and_time
+    if execute_async:
+      logging.info("Callback will be executed asynchronously. "
+                   "Errors are raised when they become available.")
+      self._cb_fn = _make_async(callback_fn.__name__)(callback_fn)  # pylint: disable=no-value-for-parameter
+    else:
+      self._cb_fn = callback_fn
+
+  def __call__(self, step: int, t: Optional[float] = None, **kwargs) -> bool:
+    if t is None:
+      t = time.time()
+
+    if self._init_and_check(step, t) and self._should_trigger(step, t):
+      # Additional arguments to the callback are passed here through **kwargs.
+      self._apply(step, t, **kwargs)
+      self._after_apply(step, t)
+      return True
+    return False
+
+  def get_last_callback_result(self):
+    """Returns the last cb result."""
+    return self._cb_results[0]
+
+  def _apply(self, step, t, **kwargs):
+    if self.pass_step_and_time:
+      result = self._cb_fn(step=step, t=t, **kwargs)
+    else:
+      result = self._cb_fn(**kwargs)
+    self._cb_results.append(result)

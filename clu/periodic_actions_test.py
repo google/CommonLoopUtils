@@ -86,8 +86,8 @@ class ReportProgressTest(tf.test.TestCase, parameterized.TestCase):
   def test_called_every_step(self):
     hook = periodic_actions.ReportProgress(every_steps=3, num_train_steps=10)
     t = time.time()
-    with self.assertRaisesRegex(ValueError,
-                                "EveryNHook must be called after every step"):
+    with self.assertRaisesRegex(
+        ValueError, "PeriodicAction must be called after every step"):
       hook(1, t)
       hook(11, t)  # Raises exception.
 
@@ -193,6 +193,87 @@ class ProfileAllHostsTest(tf.test.TestCase):
     for step in range(1, 18):
       hook(step)
     self.assertAllEqual([3, 7, 14], start_steps)
+
+
+class PeriodicCallbackTest(tf.test.TestCase):
+
+  def test_every_steps(self):
+    callback = mock.Mock()
+    hook = periodic_actions.PeriodicCallback(
+        every_steps=2, callback_fn=callback)
+
+    for step in range(1, 10):
+      hook(step, 3, remainder=step % 3)
+
+    expected_calls = [
+        mock.call(remainder=2, step=2, t=3),
+        mock.call(remainder=1, step=4, t=3),
+        mock.call(remainder=0, step=6, t=3),
+        mock.call(remainder=2, step=8, t=3)
+    ]
+    self.assertListEqual(expected_calls, callback.call_args_list)
+
+  @mock.patch("time.time")
+  def test_every_secs(self, mock_time):
+    callback = mock.Mock()
+    hook = periodic_actions.PeriodicCallback(every_secs=2, callback_fn=callback)
+
+    for step in range(1, 10):
+      mock_time.return_value = float(step)
+      hook(step, remainder=step % 5)
+    # Note: time will be initialized at 1 so hook runs at steps 4 & 7.
+    expected_calls = [
+        mock.call(remainder=4, step=4, t=4.0),
+        mock.call(remainder=2, step=7, t=7.0)
+    ]
+    self.assertListEqual(expected_calls, callback.call_args_list)
+
+  def test_async_execution(self):
+    out = []
+
+    def cb(step, t):
+      del t
+      out.append(step)
+
+    hook = periodic_actions.PeriodicCallback(
+        every_steps=1, callback_fn=cb, execute_async=True)
+    hook(0)
+    hook(1)
+    hook(2)
+    hook(3)
+    # Block till all the hooks have finished.
+    hook.get_last_callback_result().result()
+    # Check order of execution is preserved.
+    self.assertListEqual(out, [1, 2, 3])
+
+  def test_error_async_is_forwarded(self):
+
+    def cb(step, t):
+      del step
+      del t
+      raise Exception
+
+    hook = periodic_actions.PeriodicCallback(
+        every_steps=1, callback_fn=cb, execute_async=True)
+
+    hook(0)
+    hook(1)
+
+    with self.assertRaises(Exception):
+      hook(2)
+
+
+def test_function_without_step_and_time(self):
+
+  # This must be used with pass_step_and_time=False.
+  def cb():
+    return 5
+
+  hook = periodic_actions.PeriodicCallback(
+      every_steps=1, callback_fn=cb, pass_step_and_time=False)
+  hook(0)
+  hook(1)
+  self.assertEqual(hook.get_last_callback_result(), 5)
 
 
 if __name__ == "__main__":
