@@ -262,18 +262,17 @@ class PeriodicCallbackTest(tf.test.TestCase):
     with self.assertRaises(Exception):
       hook(2)
 
+  def test_function_without_step_and_time(self):
 
-def test_function_without_step_and_time(self):
+    # This must be used with pass_step_and_time=False.
+    def cb():
+      return 5
 
-  # This must be used with pass_step_and_time=False.
-  def cb():
-    return 5
-
-  hook = periodic_actions.PeriodicCallback(
-      every_steps=1, callback_fn=cb, pass_step_and_time=False)
-  hook(0)
-  hook(1)
-  self.assertEqual(hook.get_last_callback_result(), 5)
+    hook = periodic_actions.PeriodicCallback(
+        every_steps=1, callback_fn=cb, pass_step_and_time=False)
+    hook(0)
+    hook(1)
+    self.assertEqual(hook.get_last_callback_result(), 5)
 
 
 if __name__ == "__main__":

@@ -44,8 +44,10 @@ CollectCallback = Callable[[Optional[str]], None]
 
 def collect(logdir: str,
             callback: CollectCallback,
+            hosts: Optional[Sequence[str]] = None,
             duration_ms: int = 3_000):
   """Calls start() followed by stop() after specified duration."""
+  del hosts  # not used.
   start(logdir)
 
   def timer_cb():
