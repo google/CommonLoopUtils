@@ -249,8 +249,8 @@ class Checkpoint:
       RuntimeError: If tf_checkpoint.save_counter does not match
           tf_checkpoint_manager.latest_checkpoint.
     """
-    save_counter = self._checkpoint_number(self.latest_checkpoint) or 0
-    if save_counter != self.tf_checkpoint.save_counter.numpy():
+    latest_checkpoint_num = self._checkpoint_number(self.latest_checkpoint) or 0
+    if latest_checkpoint_num != self.tf_checkpoint.save_counter.numpy():
       raise RuntimeError(
           f"Expected save_counter={self.tf_checkpoint.save_counter.numpy()} "
           f"to match latest_checkpoint={self.latest_checkpoint}. Make sure "
@@ -296,6 +296,7 @@ class Checkpoint:
       logging.info("No previous checkpoint found.")
       self.save(state)
       return state
+    logging.info("Found previous checkpoint: %s", latest_checkpoint)
     self.tf_checkpoint.restore(latest_checkpoint)
     flax_path = self._flax_path(latest_checkpoint)
     with tf.io.gfile.GFile(flax_path, "rb") as f:
@@ -353,7 +354,10 @@ class MultihostCheckpoint(Checkpoint):
     Args:
       multihost_base_directory: Directory that will be used to construct a
         host-specific `base_directory` under which the checkpoints will be
-        stored.
+        stored. Usually a directory *within* the work unit's workdirectory
+        (e.g. `f"{workdir}/checkpoints`). One directory per host will be created
+        at the same level as this base directory labeled
+        `f"{multihost_base_directory}-{host_id}"`.
       tf_state: A dictionary of TensorFlow `Trackable` to be serialized, for
         example a dataset iterator.
       host_id: Host ID used to construct the `base_directory`. Taken from
@@ -402,6 +406,8 @@ class MultihostCheckpoint(Checkpoint):
         common_numbers = set(numbers)
       else:
         common_numbers &= set(numbers)
+    logging.info("Checked checkpoint base_directories: %s - common_numbers=%s",
+                 base_directories, common_numbers)
     if not common_numbers:
       return None
     highest_number = sorted(common_numbers)[-1]
