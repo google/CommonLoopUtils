@@ -33,7 +33,7 @@ pytorch_require = [
 
 setup(
     name="clu",
-    version="0.0.1a3",
+    version="0.0.2",
     description=("Set of libraries for ML training loops in JAX."),
     author="Common Loop Utils Authors",
     author_email="no-reply@google.com",
