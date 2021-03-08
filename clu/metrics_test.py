@@ -119,7 +119,7 @@ class MetricsTest(tf.test.TestCase, parameterized.TestCase):
       if reduce:
         metric_list = [
             metric_class.from_model_output(**model_output)
-            for model_output in self.model_outputs
+            for model_output in model_outputs
         ]
         metric_stacked = jax.tree_multimap(lambda *args: jnp.stack(args),
                                            *metric_list)
