@@ -21,6 +21,8 @@ from clu.metric_writers import summary_writer
 import numpy as np
 import tensorflow as tf
 
+from tensorboard.plugins.hparams import plugin_data_pb2
+
 
 def _load_histograms_data(logdir):
   """Loads tensor summaries from events in a logdir."""
@@ -51,6 +53,20 @@ def _load_scalars_data(logdir: str):
         data[event.step][value.tag] = tf.make_ndarray(value.tensor).flat[0]
 
   return data
+
+
+def _load_hparams(logdir: str):
+  """Loads hparams summaries from events in a logdir."""
+  paths = tf.io.gfile.glob(os.path.join(logdir, "events.out.tfevents.*"))
+  # data = collections.defaultdict(dict)
+  hparams = []
+  for path in paths:
+    for event in tf.compat.v1.train.summary_iterator(path):
+      for value in event.summary.value:
+        if value.metadata.plugin_data.plugin_name == "hparams":
+          hparams.append(plugin_data_pb2.HParamsPluginData.FromString(
+              value.metadata.plugin_data.content))
+  return hparams
 
 
 class SummaryWriterTest(tf.test.TestCase):
@@ -98,6 +114,37 @@ class SummaryWriterTest(tf.test.TestCase):
         [(0.0, 0.35, 4), (0.35, 0.7, 1)],
     ]
     self.assertAllClose(data["b"], ([0, 2], expected_histograms_b))
+
+  def test_hparams(self):
+    self.writer.write_hparams(dict(batch_size=512, num_epochs=90))
+    hparams = _load_hparams(self.logdir)
+    self.assertLen(hparams, 1)
+    hparams_dict = hparams[0].session_start_info.hparams
+    self.assertLen(hparams_dict, 2)
+    self.assertEqual(512, hparams_dict["batch_size"].number_value)
+    self.assertEqual(90, hparams_dict["num_epochs"].number_value)
+
+  def test_hparams_nested(self):
+    config = {
+        "list": [1, 2],
+        "tuple": (3, 4),
+        "subconfig": {
+            "value": "a",
+            "list": [10, 20],
+        },
+    }
+    self.writer.write_hparams(config)
+    hparams = _load_hparams(self.logdir)
+    self.assertLen(hparams, 1)
+    hparams_dict = hparams[0].session_start_info.hparams
+    self.assertLen(hparams_dict, 7)
+    self.assertEqual(1, hparams_dict["list.0"].number_value)
+    self.assertEqual(2, hparams_dict["list.1"].number_value)
+    self.assertEqual(3, hparams_dict["tuple.0"].number_value)
+    self.assertEqual(4, hparams_dict["tuple.1"].number_value)
+    self.assertEqual("a", hparams_dict["subconfig.value"].string_value)
+    self.assertEqual(10, hparams_dict["subconfig.list.0"].number_value)
+    self.assertEqual(20, hparams_dict["subconfig.list.1"].number_value)
 
 if __name__ == "__main__":
   tf.test.main()

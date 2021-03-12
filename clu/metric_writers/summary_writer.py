@@ -18,7 +18,7 @@ Only works in eager mode. Does not work for Pytorch code, please use
 TorchTensorboardWriter instead.
 """
 
-from typing import Any, Mapping, Optional
+from typing import Any, List, Mapping, Optional, Tuple, Union
 
 
 from clu.metric_writers import interface
@@ -29,6 +29,31 @@ from tensorboard.plugins.hparams import api as hparams_api
 
 
 Scalar = interface.Scalar
+
+
+def _flatten_dict(
+    d: Mapping[str, Any], prefix: Tuple[str] = ()
+) -> List[Tuple[str, Union[int, float, str]]]:
+  """Returns a sequence of flattened (k, v) pairs for tfsummary.hparams().
+
+  Args:
+    d: A dict-like object that has an `.item()` method.
+    prefix: Prefix to add to keys in `d`.
+
+  Returns:
+    Sequence of (k, v) pairs where k is the flattened key with individual
+    subkeys separated by dots.
+  """
+  ret = []
+  for k, v in d.items():
+    if hasattr(v, "items"):
+      ret += _flatten_dict(v, prefix + (k,))
+    elif isinstance(v, (list, tuple)):
+      ret += _flatten_dict({str(idx): value for idx, value in enumerate(v)},
+                           prefix + (k,))
+    else:
+      ret.append((".".join(prefix + (k,)), v if v is not None else ""))
+  return ret
 
 
 class SummaryWriter(interface.MetricWriter):
@@ -65,7 +90,7 @@ class SummaryWriter(interface.MetricWriter):
 
   def write_hparams(self, hparams: Mapping[str, Any]):
     with self._summary_writer.as_default():
-      hparams_api.hparams(hparams)
+      hparams_api.hparams(dict(_flatten_dict(hparams)))
 
   def flush(self):
     self._summary_writer.flush()
