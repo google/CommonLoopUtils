@@ -13,14 +13,33 @@
 # limitations under the License.
 
 """Unit tests for the deterministic_data module."""
+import itertools
+import math
 
+from typing import Dict
 from unittest import mock
 
 from absl.testing import parameterized
 from clu import deterministic_data
+import dataclasses
 import jax
 import tensorflow as tf
 import tensorflow_datasets as tfds
+
+
+@dataclasses.dataclass
+class MyDatasetBuilder:
+
+  name2len: Dict[str, int]  # Number of examples per split.
+
+  def as_dataset(self, split: tfds.core.ReadInstruction, shuffle_files: bool,
+                 read_config: tfds.ReadConfig, decoders) -> tf.data.Dataset:
+    del shuffle_files, read_config, decoders
+    instructions = split.to_absolute(self.name2len)
+    assert len(instructions) == 1
+    from_ = instructions[0].from_ or 0
+    to = instructions[0].to or self.name2len[instructions[0].splitname]
+    return tf.data.Dataset.range(from_, to).map(lambda i: {"index": i})
 
 
 class DeterministicDataTest(tf.test.TestCase, parameterized.TestCase):
@@ -179,6 +198,49 @@ class DeterministicDataTest(tf.test.TestCase, parameterized.TestCase):
          "y": expected(4),
          "mask": tf.concat([tf.ones(12, bool), tf.zeros(8, bool)], axis=0)},
         next(iter(padded_dataset.batch(20))))
+
+  @parameterized.parameters(*itertools.product(range(20), range(1, 4)))
+  def test_same_cardinality_on_all_hosts(self, num_examples: int,
+                                         host_count: int):
+    builder = MyDatasetBuilder({"train": num_examples})
+    cardinalities = []
+    for host_id in range(host_count):
+      split = deterministic_data.get_read_instruction_for_host(
+          split="train",
+          num_examples=num_examples,
+          host_id=host_id,
+          host_count=host_count,
+          drop_remainder=True)
+      ds = deterministic_data.create_dataset(
+          builder, split=split, batch_dims=[2], shuffle=False, num_epochs=1)
+      cardinalities.append(ds.cardinality().numpy().item())
+    self.assertLen(set(cardinalities), 1)
+
+  @parameterized.parameters(*itertools.product(range(20), range(1, 4)))
+  def test_same_cardinality_on_all_hosts_with_pad(self, num_examples: int,
+                                                  host_count: int):
+    builder = MyDatasetBuilder({"train": num_examples})
+    # All hosts should have the same number of batches.
+    batch_size = 2
+    pad_up_to_batches = int(math.ceil(num_examples / (batch_size * host_count)))
+    assert pad_up_to_batches * batch_size * host_count >= num_examples
+    cardinalities = []
+    for host_id in range(host_count):
+      split = deterministic_data.get_read_instruction_for_host(
+          split="train",
+          num_examples=num_examples,
+          host_id=host_id,
+          host_count=host_count,
+          drop_remainder=False)
+      ds = deterministic_data.create_dataset(
+          builder,
+          split=split,
+          batch_dims=[batch_size],
+          shuffle=False,
+          num_epochs=1,
+          pad_up_to_batches=pad_up_to_batches)
+      cardinalities.append(ds.cardinality().numpy().item())
+    self.assertLen(set(cardinalities), 1)
 
 
 if __name__ == "__main__":
