@@ -301,6 +301,9 @@ class Checkpoint:
     flax_path = self._flax_path(latest_checkpoint)
     with tf.io.gfile.GFile(flax_path, "rb") as f:
       state = flax.serialization.from_bytes(state, f.read())
+    logging.info("Restored save_counter=%d latest_checkpoint=%s",
+                 self.tf_checkpoint.save_counter.numpy(),
+                 self.latest_checkpoint)
     return state
 
   def restore(self, state: T) -> T:
@@ -390,6 +393,7 @@ class MultihostCheckpoint(Checkpoint):
       return None
     checkpoints = {}
     common_numbers = None
+    all_numbers = set()
     for base_directory in base_directories:
       checkpoint_manager = tf.train.CheckpointManager(
           tf.train.Checkpoint(),
@@ -402,12 +406,16 @@ class MultihostCheckpoint(Checkpoint):
       ]
       checkpoints[base_directory] = dict(
           zip(numbers, checkpoint_manager.checkpoints))
+      numbers = set(numbers)
       if common_numbers is None:
-        common_numbers = set(numbers)
+        common_numbers = numbers
       else:
-        common_numbers &= set(numbers)
-    logging.info("Checked checkpoint base_directories: %s - common_numbers=%s",
-                 base_directories, common_numbers)
+        common_numbers &= numbers
+      all_numbers |= numbers
+    logging.info(
+        "Checked checkpoint base_directories: %s - common_numbers=%s "
+        "- exclusive_numbers=%s", base_directories, common_numbers,
+        all_numbers.difference(common_numbers))
     if not common_numbers:
       return None
     highest_number = sorted(common_numbers)[-1]
