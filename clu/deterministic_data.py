@@ -85,6 +85,7 @@ def get_read_instruction_for_host(
     split: str,
     num_examples: int,
     *,
+    num_skipped: int = 0,
     host_id: Optional[int] = None,
     host_count: Optional[int] = None,
     drop_remainder: bool = True) -> tfds.core.ReadInstruction:
@@ -103,7 +104,10 @@ def get_read_instruction_for_host(
 
   Args:
     split: Name of the dataset split to use.
-    num_examples: Number of examples of the split.
+    num_examples: Total number of examples to load (must be smaller than or
+      equal to the number of examples of the split).
+    num_skipped: Optional, number of examples to skip, starting from the
+       beginning of the dataset split. Defaults to 0 (no examples are skipped).
     host_id: Optional, host index in [0, host_count). Defaults to
       `jax.host_id()`.
     host_count: Optional, number of hosts. Defaults to `jax.host_count`.
@@ -125,7 +129,7 @@ def get_read_instruction_for_host(
         f"({host_count}).")
 
   examples_per_host = num_examples // host_count
-  start = examples_per_host * host_id
+  start = num_skipped + examples_per_host * host_id
   end = examples_per_host * (host_id + 1)
 
   # Handle remaining examples.
