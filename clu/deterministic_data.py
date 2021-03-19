@@ -176,7 +176,8 @@ def _preprocess_with_per_example_rng(ds: tf.data.Dataset,
 
 
 def pad_dataset(dataset: tf.data.Dataset, *, batch_dims: Sequence[int],
-                pad_up_to_batches: int, cardinality: Optional[int] = None):
+                pad_up_to_batches: Optional[int] = None,
+                cardinality: Optional[int] = None):
   """Adds padding to a dataset.
 
   Args:
@@ -191,6 +192,10 @@ def pad_dataset(dataset: tf.data.Dataset, *, batch_dims: Sequence[int],
       for every example that is padded to get to the specified number of
       batches. Note that the specified `dataset_builder` and `split` must result
       in at least `pad_up_to_batches` (possibly partial) batches.
+      If `None`, derive from `batch_dims` and `cardinality` such that
+      `pad_up_to_batches * batch_dims == cardinality`.
+      Note that `cardinality` is what you pass in, not necessarily the original
+      full dataset size if you decide to shard it per host.
     cardinality: Number of examples in the dataset. Only needed when the
       cardinality cannot be retrieved via `ds.cardinalty()` (e.g. because of
       using `ds.filter()`).
@@ -210,6 +215,9 @@ def pad_dataset(dataset: tf.data.Dataset, *, batch_dims: Sequence[int],
           "argument to `create_dataset()`.")
   if "mask" in  dataset.element_spec:
     raise ValueError("Dataset already contains a feature named \"mask\".")
+  if pad_up_to_batches is None:
+    pad_up_to_batches = int(np.ceil(cardinality / np.prod(batch_dims)))
+
   filler_element = tf.nest.map_structure(
       lambda spec: tf.zeros(spec.shape, spec.dtype)[None], dataset.element_spec)
   filler_element["mask"] = [False]
