@@ -66,7 +66,7 @@ class CheckpointTest(tf.test.TestCase):
   def test_restores_flax_state(self):
     base_dir = tempfile.mkdtemp()
     state = TrainState(step=1)
-    ckpt = checkpoint.Checkpoint(base_dir)
+    ckpt = checkpoint.Checkpoint(base_dir, max_to_keep=2)
     # Initializes.
     state = ckpt.restore_or_initialize(state)
     state = TrainState(step=0)
@@ -80,6 +80,14 @@ class CheckpointTest(tf.test.TestCase):
     state = TrainState(step=0)
     # Restores step=2.
     state = ckpt.restore(state)
+    self.assertEqual(state.step, 2)
+    state = TrainState(step=3)
+    # Stores step=3
+    path2 = ckpt.save(state)
+    self.assertEqual(_checkpoint_number(path2), 3)
+    state = TrainState(step=0)
+    # Restores step=2.
+    state = ckpt.restore(state, path)
     self.assertEqual(state.step, 2)
 
   def test_load_state_dict(self):
