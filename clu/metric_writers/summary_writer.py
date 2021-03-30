@@ -32,7 +32,7 @@ Scalar = interface.Scalar
 
 
 def _flatten_dict(
-    d: Mapping[str, Any], prefix: Tuple[str] = ()
+    d: Mapping[str, Any], prefix: Tuple[str, ...] = ()
 ) -> List[Tuple[str, Union[int, float, str]]]:
   """Returns a sequence of flattened (k, v) pairs for tfsummary.hparams().
 
