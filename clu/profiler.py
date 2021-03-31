@@ -22,21 +22,25 @@ from typing import Callable, Optional, Sequence
 
 from absl import logging
 
-import tensorflow as tf
+import jax
 
 
 
-def start(logdir: str,
-          options: Optional[tf.profiler.experimental.ProfilerOptions] = None):
+def start(logdir: str, options=None):
   """Starts profiling."""
+  if options is not None:
+    raise NotImplementedError(
+        "'options' not supported by clu.profiler.start(). Please file an issue "
+        "at https://github.com/google/jax/issues requesting profiler option "
+        "support if you need this feature.")
   if logdir is None:
-    raise ValueError("Must specify logdir for tf.profiler!")
-  tf.profiler.experimental.start(logdir=logdir, options=options)
+    raise ValueError("Must specify logdir where profile should be written!")
+  jax.profiler.start_trace(logdir)
 
 
 def stop() -> Optional[str]:
   """Stops profiling."""
-  tf.profiler.experimental.stop()
+  jax.profiler.stop_trace()
 
 
 CollectCallback = Callable[[Optional[str]], None]
