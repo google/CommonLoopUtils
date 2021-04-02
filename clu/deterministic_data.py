@@ -52,7 +52,7 @@ Synopsis for deterministic training with multiple hosts:
 
 """
 
-from typing import Callable, Dict, Optional, Sequence, Union
+from typing import Any, Callable, Dict, Optional, Sequence, Union
 
 from absl import logging
 
@@ -246,6 +246,7 @@ def create_dataset(dataset_builder: DatasetBuilder,
                    shuffle: bool = True,
                    shuffle_buffer_size: int = 10_000,
                    prefetch_size: int = 4,
+                   padded_shapes: Optional[Any] = None,
                    pad_up_to_batches: Optional[int] = None,
                    cardinality: Optional[int] = None) -> tf.data.Dataset:
   """Create standard input pipeline (shuffle, preprocess, batch).
@@ -278,6 +279,8 @@ def create_dataset(dataset_builder: DatasetBuilder,
     prefetch_size: The number of elements in the final dataset to prefetch in
       the background. This should be a small (say <10) positive integer or
       tf.data.experimental.AUTOTUNE.
+    padded_shapes: If specified, must match the structure of the features.
+      It allows to standardize the size of features before batching.
     pad_up_to_batches: Set this option to process the entire dataset. When set,
       then the dataset is first padded to the specified number of batches. A new
       feature called "mask" is added to every batch. This feature is set to
@@ -292,6 +295,8 @@ def create_dataset(dataset_builder: DatasetBuilder,
   Returns:
     The dataset with preprocessed and batched examples.
   """
+  if padded_shapes is not None and not batch_dims:
+    raise ValueError("Use padded_shapes in combination with batching.")
   rng_available = rng is not None
   if not rng_available and shuffle:
     raise ValueError("Please set 'rng' when shuffling.")
@@ -340,7 +345,11 @@ def create_dataset(dataset_builder: DatasetBuilder,
         cardinality=cardinality)
 
   if batch_dims:
-    for batch_size in reversed(batch_dims):
+    if padded_shapes:
+      ds = ds.padded_batch(batch_dims[-1], padded_shapes, drop_remainder=True)
+    else:
+      ds = ds.batch(batch_dims[-1], drop_remainder=True)
+    for batch_size in reversed(batch_dims[:-1]):
       ds = ds.batch(batch_size, drop_remainder=True)
 
   return ds.prefetch(prefetch_size)
@@ -365,6 +374,7 @@ def create_distributed_dataset(
     shuffle: bool = True,
     shuffle_buffer_size: int = 10_000,
     prefetch_size: int = 4,
+    padded_shapes: Optional[Any] = None,
     pad_up_to_batches: Optional[int] = None,
     cardinality: Optional[int] = None) -> tf.data.Dataset:
   """Create standard input pipeline (shuffle, preprocess, batch).
@@ -393,6 +403,8 @@ def create_distributed_dataset(
     prefetch_size: The number of elements in the final dataset to prefetch in
       the background. This should be a small (say <10) positive integer or
       tf.data.experimental.AUTOTUNE.
+    padded_shapes: If specified, must match the structure of the features.
+      It allows to standardize the size of features before batching.
     pad_up_to_batches: Set this option to process the entire dataset. When set,
       then the dataset is first padded to the specified number of batches. A new
       feature called "mask" is added to every batch. This feature is set to
@@ -440,6 +452,7 @@ def create_distributed_dataset(
         shuffle=shuffle,
         shuffle_buffer_size=shuffle_buffer_size,
         prefetch_size=prefetch_size,
+        padded_shapes=padded_shapes,
         pad_up_to_batches=pad_up_to_batches,
         cardinality=cardinality)
 
