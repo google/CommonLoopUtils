@@ -42,7 +42,7 @@ Usage:
 
 # pylint: disable=unused-import
 
-from typing import Optional
+from typing import Optional, List, Tuple, Union
 
 from absl import flags
 
