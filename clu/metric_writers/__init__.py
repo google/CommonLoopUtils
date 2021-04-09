@@ -75,6 +75,7 @@ def create_default_writer(
     just_logging: If True only use a LoggingWriter. This is useful in multi-host
       setups when only the first host should write metrics and all other hosts
       should only write to their own logs.
+    write_to_xm_measurements: If True uses XmMeasurementsWriter in addition.
     asynchronous: If True return an AsyncMultiWriter to not block when writing
       metrics.
 
