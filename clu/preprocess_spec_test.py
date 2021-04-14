@@ -116,6 +116,17 @@ class PreprocessSpecTest(parameterized.TestCase, tf.test.TestCase):
     y = preprocess_fn(x)
     self.assertEqual(y, {"image": tf.constant(2)})
 
+  def test_only_jax_types_nested_inputs(self):
+    preprocess_fn = preprocess_spec.parse("", all_ops())
+    x = {
+        "nested": {
+            "not_allowed": tf.constant("bla"),
+            "allowed": tf.constant(2),
+        }
+    }
+    y = preprocess_fn(x)
+    self.assertEqual(y, {"nested": {"allowed": tf.constant(2)}})
+
   def test_not_only_jax_types(self):
     preprocess_fn = preprocess_spec.parse("", all_ops(), only_jax_types=False)
     x = {"image": tf.constant(2), "label": tf.constant("bla")}

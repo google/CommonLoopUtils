@@ -39,16 +39,18 @@ import ast
 import inspect
 import re
 import sys
-from typing import Dict, List, Sequence, Tuple, Type
+from typing import Dict, List, Sequence, Tuple, Type, Union
 
 from absl import logging
 import dataclasses
+from flax import traverse_util
 import jax.numpy as jnp
 import tensorflow as tf
 import typing_extensions
 
-# Feature dictionary.
-Features = Dict[str, tf.Tensor]
+# Feature dictionary. Arbitrary nested dictionary with string keys and
+# tf.Tensor as leaves.
+Features = Dict[str, Union[tf.Tensor, "Features"]]  # pytype: disable=not-supported-yet
 # Feature name for the random seed for tf.random.stateless_* ops.
 SEED_KEY = "seed"
 # Regex that finds upper case characters.
@@ -118,6 +120,7 @@ class OnlyJaxTypes:
       default_factory=_jax_supported_tf_types)
 
   def __call__(self, features: Features) -> Features:
+    features = traverse_util.flatten_dict(features)
     for name in list(features):
       dtype = features[name].dtype
       if dtype not in self.types:
@@ -135,7 +138,8 @@ class OnlyJaxTypes:
         logging.warning(
             "Removing feature %r because ragged tensors are not support in"
             "JAX.", name)
-    return features
+    features = traverse_util.unflatten_dict(features)
+    return features  # pytype: disable=bad-return-type
 
 
 @dataclasses.dataclass
