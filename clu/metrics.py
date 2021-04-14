@@ -255,7 +255,7 @@ class Collection:
     for inputs, labels in data:
       logits = model(inputs)
       update = Metrics.single_from_model_output(logits=logits, labels=labels)
-      metrics = update if metrics is None else metrics.merge()
+      metrics = update if metrics is None else metrics.merge(update)
     print(metrics.compute())
   """
 

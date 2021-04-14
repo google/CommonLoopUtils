@@ -267,13 +267,12 @@ def create_dataset(dataset_builder: DatasetBuilder,
     filter_fn: Optional function to filter the decoded examples. This happens
       before the preprocessing.
     preprocess_fn: Function for preprocessing individual examples (which should
-      be Python dictionary of tensors)
+      be Python dictionary of tensors).
     decoders: Optional dictionary of decoder passed to as_dataset.
     cache: Cache the unprocessed dataset in memory.
     num_epochs: Number of epochs for which to repeat the dataset. None to repeat
       forever.
-    shuffle: Whether the shuffle the dataset (both on the file and example
-      level).
+    shuffle: Whether to shuffle the dataset (both on file and example level).
     shuffle_buffer_size: Number of examples in the shuffle buffer.
     prefetch_size: The number of elements in the final dataset to prefetch in
       the background. This should be a small (say <10) positive integer or
