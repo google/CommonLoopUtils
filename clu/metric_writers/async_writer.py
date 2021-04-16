@@ -24,6 +24,7 @@
 import contextlib
 import multiprocessing
 import sys
+import time
 from typing import Any, Mapping, Optional, Sequence
 
 from absl import logging
@@ -61,6 +62,8 @@ class AsyncWriter(interface.MetricWriter):
     self._errors = [
     ]  # Tuples returned by sys.exc_info(): (type, value, traceback).
 
+    self._queue_length = 0
+    self._queue_t0 = time.time()
 
   def _raise_previous_errors(self):
     while self._errors:
@@ -72,7 +75,9 @@ class AsyncWriter(interface.MetricWriter):
     """Call `func` with `kwargs` in the background thread."""
 
     def _fn(func, **kwargs):
+      self._queue_length -= 1
       try:
+        t0 = time.time()
         func(**kwargs)
       except Exception as e:
         self._errors.append(sys.exc_info())
@@ -83,6 +88,12 @@ class AsyncWriter(interface.MetricWriter):
 
     self._raise_previous_errors()
     self._worker_pool.apply_async(_fn, args=(func,), kwds=kwargs)
+    self._queue_length += 1
+    dt = time.time() - self._queue_t0
+    if dt > 10:
+      logging.info("writer=%s queue_length=%d", self._writer.__class__.__name__,
+                   self._queue_length)
+      self._queue_t0 += dt
 
   def write_scalars(self, step: int, scalars: Mapping[str, Scalar]):
     scalars = {k: np.array(v).item() for k, v in scalars.items()}
@@ -110,11 +121,11 @@ class AsyncWriter(interface.MetricWriter):
     self._call_async(self._writer.write_hparams, hparams=hparams)
 
   def flush(self):
-    self._raise_previous_errors()
     self._worker_pool.close()
     self._worker_pool.join()
     self._writer.flush()
     self._worker_pool = multiprocessing.pool.ThreadPool(self._num_workers)
+    self._raise_previous_errors()
 
   def close(self):
     self.flush()
