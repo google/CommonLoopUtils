@@ -22,12 +22,10 @@
 """
 
 import contextlib
-import multiprocessing
-import sys
 from typing import Any, Mapping, Optional, Sequence
 
-from absl import logging
 
+from clu.internal import asynclib
 from clu.metric_writers import interface
 from clu.metric_writers import multi_writer
 import numpy as np
@@ -57,68 +55,43 @@ class AsyncWriter(interface.MetricWriter):
     # By default, we have a thread pool with a single worker to ensure that
     # calls to the function are run in order (but in a background thread).
     self._num_workers = num_workers
-    self._worker_pool = multiprocessing.pool.ThreadPool(num_workers)
-    self._errors = [
-    ]  # Tuples returned by sys.exc_info(): (type, value, traceback).
+    self._pool = asynclib.Pool(
+        thread_name_prefix="AsyncWriter", max_workers=num_workers)
 
-
-  def _raise_previous_errors(self):
-    while self._errors:
-      _, value, traceback = self._errors.pop()
-      logging.exception("An error occurred in a previous call.")
-      raise value.with_traceback(traceback)
-
-  def _call_async(self, func, **kwargs):
-    """Call `func` with `kwargs` in the background thread."""
-
-    def _fn(func, **kwargs):
-      try:
-        func(**kwargs)
-      except Exception as e:
-        self._errors.append(sys.exc_info())
-        logging.exception(
-            "Error in producer thread. Storing exception info for "
-            "re-raise in the main thread.")
-        raise e
-
-    self._raise_previous_errors()
-    self._worker_pool.apply_async(_fn, args=(func,), kwds=kwargs)
 
   def write_scalars(self, step: int, scalars: Mapping[str, Scalar]):
     scalars = {k: np.array(v).item() for k, v in scalars.items()}
-    self._call_async(self._writer.write_scalars, step=step, scalars=scalars)
+    self._pool(self._writer.write_scalars)(step=step, scalars=scalars)
 
   def write_images(self, step: int, images: Mapping[str, np.ndarray]):
     images = {k: np.array(v) for k, v in images.items()}
-    self._call_async(self._writer.write_images, step=step, images=images)
+    self._pool(self._writer.write_images)(step=step, images=images)
 
   def write_texts(self, step: int, texts: Mapping[str, str]):
-    self._call_async(self._writer.write_texts, step=step, texts=texts)
+    self._pool(self._writer.write_texts)(step=step, texts=texts)
 
   def write_histograms(self,
                        step: int,
                        arrays: Mapping[str, np.ndarray],
                        num_buckets: Optional[Mapping[str, int]] = None):
     arrays = {k: np.array(v) for k, v in arrays.items()}
-    self._call_async(
-        self._writer.write_histograms,
-        step=step,
-        arrays=arrays,
-        num_buckets=num_buckets)
+    self._pool(self._writer.write_histograms)(
+        step=step, arrays=arrays, num_buckets=num_buckets)
 
   def write_hparams(self, hparams: Mapping[str, Any]):
-    self._call_async(self._writer.write_hparams, hparams=hparams)
+    self._pool(self._writer.write_hparams)(hparams=hparams)
 
   def flush(self):
-    self._raise_previous_errors()
-    self._worker_pool.close()
-    self._worker_pool.join()
-    self._writer.flush()
-    self._worker_pool = multiprocessing.pool.ThreadPool(self._num_workers)
+    try:
+      self._pool.join()
+    finally:
+      self._writer.flush()
 
   def close(self):
-    self.flush()
-    self._writer.close()
+    try:
+      self.flush()
+    finally:
+      self._writer.close()
 
 
 class AsyncMultiWriter(multi_writer.MultiWriter):

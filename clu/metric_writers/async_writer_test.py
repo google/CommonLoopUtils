@@ -45,14 +45,6 @@ class AsyncWriterTest(tf.test.TestCase):
         })
     ])
 
-  def test_write_scalars_fails_without_flush(self):
-    self.writer.write_scalars(0, {"a": 3, "b": 0.15})
-    self.writer.write_scalars(2, {"a": 5, "b": 0.007})
-    # No call to flush() makes it very unlikely that the background thread had
-    # the sync_writer.
-    self.sync_writer.write_scalars.assert_not_called()
-    self.sync_writer.flush.assert_not_called()
-
   def test_write_images(self):
     images = np.zeros((2, 28, 28, 3))
     self.writer.write_images(4, {"input_images": images})

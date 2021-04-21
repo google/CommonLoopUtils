@@ -19,7 +19,6 @@ import collections
 import concurrent.futures
 import contextlib
 import queue
-import sys
 import time
 from typing import Callable, Optional, Sequence
 
@@ -28,88 +27,13 @@ from clu import metric_writers
 from clu import platform
 from clu import profiler
 
+from clu.internal import asynclib
 import jax
 import jax.numpy as jnp
-import wrapt
 
 
 
 MetricWriter = metric_writers.MetricWriter
-
-
-def _make_async(thread_name_prefix=""):
-  """Returns a decorator that runs any function it wraps in a background thread.
-
-   When called, the decorated function will immediately return a future
-   representing its result.
-   The function being decorated can be an instance method or normal function.
-   Consecutive calls to the decorated function are guaranteed to be in order
-   and non overlapping.
-   An error raised by the decorated function will be raised in the background
-   thread at call-time. Raising the error in the main thread is deferred until
-   the next call, so as to be non-blocking.
-   All subsequent calls to the decorated function after an error has been
-   raised
-   will not run (regardless of whether the arguments have changed); instead
-   they will re-raise the original error in the main thread.
-
-  Args:
-    thread_name_prefix: Str prefix for the background thread, for easier
-      debugging.
-
-  Returns:
-    decorator that runs any function it wraps in a background thread, and
-    handles any errors raised.
-  """
-  # We have a single thread pool per wrapped function to ensure that calls to
-  # the function are run in order (but in a background thread).
-  pool = concurrent.futures.ThreadPoolExecutor(
-      max_workers=1, thread_name_prefix=thread_name_prefix)
-  errors = []
-
-  @wrapt.decorator
-  def decorator(wrapped, instance, args, kwargs):
-    """Runs wrapped in a background thread so result is non-blocking.
-
-    Args:
-      wrapped: A function to wrap and execute in background thread. Can be
-        instance method or normal function.
-      instance: The object to which the wrapped function was bound when it was
-        called (None if wrapped is a normal function).
-      args: List of position arguments supplied when wrapped function was
-        called.
-      kwargs: Dict of keyword arguments supplied when the wrapped function was
-        called.
-
-    Returns:
-      A future representing the result of calling wrapped.
-    Raises:
-      Exception object caught in background thread, if call to wrapped fails.
-      Exception object with stacktrace in main thread, if the previous call to
-        wrapped failed.
-    """
-
-    def trap_errors(*args, **kwargs):
-      """Wraps wrapped to trap any errors thrown."""
-
-      if errors:
-        # Do not execute wrapped if previous call errored.
-        return
-      try:
-        return wrapped(*args, **kwargs)
-      except Exception as e:
-        errors.append(sys.exc_info())
-        logging.exception("Error in producer thread for %s", thread_name_prefix)
-        raise e
-
-    if errors:
-      # Previous call had an error, re-raise in main thread.
-      exc_info = errors[-1]
-      raise exc_info[1].with_traceback(exc_info[2])
-    del instance
-    return pool.submit(trap_errors, *args, **kwargs)
-
-  return decorator
 
 
 @jax.jit
@@ -472,7 +396,7 @@ class PeriodicCallback(PeriodicAction):
     if execute_async:
       logging.info("Callback will be executed asynchronously. "
                    "Errors are raised when they become available.")
-      self._cb_fn = _make_async(callback_fn.__name__)(callback_fn)  # pylint: disable=no-value-for-parameter
+      self._cb_fn = asynclib.Pool(callback_fn.__name__)(callback_fn)
     else:
       self._cb_fn = callback_fn
 
