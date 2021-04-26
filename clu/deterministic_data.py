@@ -192,7 +192,7 @@ def pad_dataset(dataset: tf.data.Dataset, *, batch_dims: Sequence[int],
       for every example that is padded to get to the specified number of
       batches. Note that the specified `dataset_builder` and `split` must result
       in at least `pad_up_to_batches` (possibly partial) batches.
-      If `None`, derives from `batch_dims` and `cardinality` such that
+      If `None` or <=0, derives from `batch_dims` and `cardinality` such that
       `pad_up_to_batches * batch_dims == cardinality`.
       Note that `cardinality` is what you pass in, not necessarily the original
       full dataset size if you decide to shard it per host.
@@ -215,7 +215,7 @@ def pad_dataset(dataset: tf.data.Dataset, *, batch_dims: Sequence[int],
           "argument to `create_dataset()`.")
   if "mask" in  dataset.element_spec:
     raise ValueError("Dataset already contains a feature named \"mask\".")
-  if pad_up_to_batches is None:
+  if pad_up_to_batches is None or pad_up_to_batches <= 0:
     pad_up_to_batches = int(np.ceil(cardinality / np.prod(batch_dims)))
 
   filler_element = tf.nest.map_structure(
@@ -284,6 +284,8 @@ def create_dataset(dataset_builder: DatasetBuilder,
       for every example that is padded to get to the specified number of
       batches. Note that the specified `dataset_builder` and `split` must result
       in at least `pad_up_to_batches` (possibly partial) batches.
+      If <=0, derives from `batch_dims` and `cardinality` such that
+      `pad_up_to_batches * batch_dims == cardinality`.
     cardinality: Number of examples in the dataset. Only needed when
       `pad_up_to_batches` is specified and the cardinality cannot be retrieved
       via `ds.cardinalty()` (e.g. because of `ds.filter()`).
@@ -331,7 +333,7 @@ def create_dataset(dataset_builder: DatasetBuilder,
     else:
       ds = ds.map(preprocess_fn, num_parallel_calls=AUTOTUNE)
 
-  if pad_up_to_batches:
+  if pad_up_to_batches is not None:
     ds = pad_dataset(
         ds,
         batch_dims=batch_dims,
