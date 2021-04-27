@@ -192,7 +192,7 @@ def pad_dataset(dataset: tf.data.Dataset, *, batch_dims: Sequence[int],
       for every example that is padded to get to the specified number of
       batches. Note that the specified `dataset_builder` and `split` must result
       in at least `pad_up_to_batches` (possibly partial) batches.
-      If `None`, derive from `batch_dims` and `cardinality` such that
+      If `None`, derives from `batch_dims` and `cardinality` such that
       `pad_up_to_batches * batch_dims == cardinality`.
       Note that `cardinality` is what you pass in, not necessarily the original
       full dataset size if you decide to shard it per host.
@@ -248,7 +248,7 @@ def create_dataset(dataset_builder: DatasetBuilder,
                    prefetch_size: int = 4,
                    pad_up_to_batches: Optional[int] = None,
                    cardinality: Optional[int] = None) -> tf.data.Dataset:
-  """Create standard input pipeline (shuffle, preprocess, batch).
+  """Creates standard input pipeline (shuffle, preprocess, batch).
 
   Args:
     dataset_builder: Dataset builder object with a as_dataset() method. E.g.
@@ -269,7 +269,7 @@ def create_dataset(dataset_builder: DatasetBuilder,
     preprocess_fn: Function for preprocessing individual examples (which should
       be Python dictionary of tensors).
     decoders: Optional dictionary of decoder passed to as_dataset.
-    cache: Cache the unprocessed dataset in memory.
+    cache: Whether to cache the unprocessed dataset in memory.
     num_epochs: Number of epochs for which to repeat the dataset. None to repeat
       forever.
     shuffle: Whether to shuffle the dataset (both on file and example level).
@@ -366,7 +366,7 @@ def create_distributed_dataset(
     prefetch_size: int = 4,
     pad_up_to_batches: Optional[int] = None,
     cardinality: Optional[int] = None) -> tf.data.Dataset:
-  """Create standard input pipeline (shuffle, preprocess, batch).
+  """Creates standard input pipeline (shuffle, preprocess, batch).
 
   Args:
     dataset_builder: Dataset builder object with a as_dataset() method. E.g.
@@ -383,7 +383,7 @@ def create_distributed_dataset(
     preprocess_fn: Function for preprocessing individual examples (which should
       be Python dictionary of tensors)
     decoders: Optional dictionary of decoder passed to as_dataset.
-    cache: Cache the unprocessed dataset in memory.
+    cache: Whether to cache the unprocessed dataset in memory.
     num_epochs: Number of epochs for which to repeat the dataset. None to repeat
       forever.
     shuffle: Whether the shuffle the dataset (both on the file and example
