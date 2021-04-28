@@ -98,10 +98,12 @@ def get_all_ops(module_name: str) -> List[Tuple[str, Type[PreprocessOp]]]:
 
 
 def _jax_supported_tf_types():
-  return [
+  types = [
       x for _, x in inspect.getmembers(tf.dtypes)
       if isinstance(x, tf.dtypes.DType) and hasattr(jnp, x.name)
   ]
+  # bool is called bool_ in jax and won't be found by the expression above.
+  return types + [tf.bool]
 
 
 @dataclasses.dataclass
