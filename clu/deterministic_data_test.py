@@ -242,6 +242,27 @@ class DeterministicDataTest(tf.test.TestCase, parameterized.TestCase):
       cardinalities.append(ds.cardinality().numpy().item())
     self.assertLen(set(cardinalities), 1)
 
+  def test_create_dataset_with_padded_shapes(self):
+    dataset_builder = mock.Mock()
+    dataset = tf.data.Dataset.from_tensor_slices(
+        dict(x=tf.ones((12, 3, 2)), y=tf.ones((12, 3))))
+    dataset_builder.as_dataset.return_value = dataset
+    batch_dims = (4, 3)
+    padded_shapes = {"x": (5, 4), "y": (5,)}
+    ds = deterministic_data.create_dataset(
+        dataset_builder,
+        split="(ignored)",
+        batch_dims=batch_dims,
+        shuffle=False,
+        padded_shapes=padded_shapes,
+        )
+    expected_shapes = {
+        "x": batch_dims + padded_shapes["x"],
+        "y": batch_dims + padded_shapes["y"],
+    }
+    self.assertEqual(
+        expected_shapes, {k: v.shape for k, v in ds.element_spec.items()})
+
 
 if __name__ == "__main__":
   tf.test.main()
