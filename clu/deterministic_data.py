@@ -61,7 +61,6 @@ import jax.numpy as jnp
 import numpy as np
 import tensorflow as tf
 import tensorflow_datasets as tfds
-import typing_extensions
 
 
 
@@ -69,16 +68,6 @@ Tensor = Union[tf.Tensor, tf.SparseTensor, tf.RaggedTensor]
 Features = Dict[str, Tensor]
 
 AUTOTUNE = tf.data.experimental.AUTOTUNE
-
-
-class DatasetBuilder(typing_extensions.Protocol):
-  """Protocol for dataset builders (subset of tfds.core.DatasetBuilder)."""
-
-  def as_dataset(
-      self, split: Union[str, tfds.core.ReadInstruction], shuffle_files: bool,
-      read_config: tfds.ReadConfig,
-      decoders: Optional[Dict[str, tfds.decode.Decoder]]) -> tf.data.Dataset:
-    ...
 
 
 def get_read_instruction_for_host(
@@ -232,7 +221,7 @@ def pad_dataset(dataset: tf.data.Dataset, *, batch_dims: Sequence[int],
   return dataset.concatenate(filler_dataset.repeat(padding))
 
 
-def create_dataset(dataset_builder: DatasetBuilder,
+def create_dataset(dataset_builder: tfds.core.DatasetBuilder,
                    *,
                    split: Union[str, tfds.core.ReadInstruction],
                    batch_dims: Sequence[int] = (),
