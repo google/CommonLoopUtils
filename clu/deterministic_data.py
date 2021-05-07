@@ -247,7 +247,8 @@ def create_dataset(dataset_builder: DatasetBuilder,
                    shuffle_buffer_size: int = 10_000,
                    prefetch_size: int = 4,
                    pad_up_to_batches: Optional[int] = None,
-                   cardinality: Optional[int] = None) -> tf.data.Dataset:
+                   cardinality: Optional[int] = None,
+                   allow_shuffle_without_rng: bool = False) -> tf.data.Dataset:
   """Creates standard input pipeline (shuffle, preprocess, batch).
 
   Args:
@@ -287,12 +288,14 @@ def create_dataset(dataset_builder: DatasetBuilder,
     cardinality: Number of examples in the dataset. Only needed when
       `pad_up_to_batches` is specified and the cardinality cannot be retrieved
       via `ds.cardinalty()` (e.g. because of `ds.filter()`).
-
+    allow_shuffle_without_rng: bool, This must be explicitly passed in order
+      to allow shuffling without a random number generator. This will break
+      determinism.
   Returns:
     The dataset with preprocessed and batched examples.
   """
   rng_available = rng is not None
-  if not rng_available and shuffle:
+  if not rng_available and shuffle and not allow_shuffle_without_rng:
     raise ValueError("Please set 'rng' when shuffling.")
   if rng_available:
     if isinstance(rng, tf.Tensor):
