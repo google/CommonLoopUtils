@@ -246,7 +246,7 @@ def create_dataset(dataset_builder: DatasetBuilder,
                    shuffle: bool = True,
                    shuffle_buffer_size: int = 10_000,
                    prefetch_size: int = 4,
-                   pad_up_to_batches: Optional[int] = None,
+                   pad_up_to_batches: Optional[Union[int, str]] = None,
                    cardinality: Optional[int] = None) -> tf.data.Dataset:
   """Creates standard input pipeline (shuffle, preprocess, batch).
 
@@ -277,13 +277,16 @@ def create_dataset(dataset_builder: DatasetBuilder,
     prefetch_size: The number of elements in the final dataset to prefetch in
       the background. This should be a small (say <10) positive integer or
       tf.data.experimental.AUTOTUNE.
-    pad_up_to_batches: Set this option to process the entire dataset. When set,
-      then the dataset is first padded to the specified number of batches. A new
-      feature called "mask" is added to every batch. This feature is set to
-      `True` for every example that comes from `dataset_builder`, and to `False`
-      for every example that is padded to get to the specified number of
-      batches. Note that the specified `dataset_builder` and `split` must result
-      in at least `pad_up_to_batches` (possibly partial) batches.
+    pad_up_to_batches: Set this option to process the entire dataset.
+      - If set with an integer, the dataset is first padded to the specified
+      number of batches. A new feature called "mask" is added to every batch.
+      This feature is set to `True` for every example that comes from
+      `dataset_builder`, and to `False` for every example that is padded.
+      Note that the specified `dataset_builder` and `split` must result in at
+      least `pad_up_to_batches` (possibly partial) batches.
+      - If set with "auto", derives from `batch_dims` and `cardinality` such
+      that `pad_up_to_batches * batch_dims == cardinality`.
+      - If `None`, the dataset won't be padded.
     cardinality: Number of examples in the dataset. Only needed when
       `pad_up_to_batches` is specified and the cardinality cannot be retrieved
       via `ds.cardinalty()` (e.g. because of `ds.filter()`).
@@ -331,11 +334,13 @@ def create_dataset(dataset_builder: DatasetBuilder,
     else:
       ds = ds.map(preprocess_fn, num_parallel_calls=AUTOTUNE)
 
-  if pad_up_to_batches:
+  if pad_up_to_batches is not None:
+    assert isinstance(pad_up_to_batches, int) or pad_up_to_batches == "auto"
     ds = pad_dataset(
         ds,
         batch_dims=batch_dims,
-        pad_up_to_batches=pad_up_to_batches,
+        pad_up_to_batches=(None if pad_up_to_batches == "auto" else
+                           pad_up_to_batches),
         cardinality=cardinality)
 
   if batch_dims:

@@ -110,11 +110,8 @@ class DeterministicDataTest(tf.test.TestCase, parameterized.TestCase):
         },
     ], list(ds_out))
 
-  @parameterized.named_parameters(
-      ("cardinality", True),
-      ("nocardinality", False),
-  )
-  def test_create_dataset_padding(self, cardinality):
+  @parameterized.parameters(*itertools.product([2, "auto"], [True, False]))
+  def test_create_dataset_padding(self, pad_up_to_batches, cardinality):
     dataset_builder = mock.Mock()
     dataset = tf.data.Dataset.from_tensor_slices(
         dict(x=tf.ones((12, 10)), y=tf.ones(12)))
@@ -126,7 +123,7 @@ class DeterministicDataTest(tf.test.TestCase, parameterized.TestCase):
         batch_dims=batch_dims,
         num_epochs=1,
         shuffle=False,
-        pad_up_to_batches=2,
+        pad_up_to_batches=pad_up_to_batches,
         cardinality=12 if cardinality else None,
     )
     ds_iter = iter(ds)
