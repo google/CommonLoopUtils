@@ -42,6 +42,16 @@ class MyDatasetBuilder:
     return tf.data.Dataset.range(from_, to).map(lambda i: {"index": i})
 
 
+@dataclasses.dataclass
+class FakeDatasetInfo:
+
+  def splits(self):
+    return {
+        "train": tfds.core.SplitInfo("train", [9], 0),
+        "test": tfds.core.SplitInfo("test", [8], 0)
+    }
+
+
 class DeterministicDataTest(tf.test.TestCase, parameterized.TestCase):
   """Tests for deterministic_data module."""
 
@@ -59,9 +69,11 @@ class DeterministicDataTest(tf.test.TestCase, parameterized.TestCase):
       (8, 1, 3, False, "test[3:6]"),
       (8, 2, 3, False, "test[6:8]"),
   )
-  def test_get_read_instruction_for_host(self, num_examples: int, host_id: int,
-                                         host_count: int, drop_remainder: bool,
-                                         expected_spec: str):
+  def test_get_read_instruction_for_host_deprecated(self, num_examples: int,
+                                                    host_id: int,
+                                                    host_count: int,
+                                                    drop_remainder: bool,
+                                                    expected_spec: str):
     expected = tfds.core.ReadInstruction.from_spec(expected_spec)
     actual = deterministic_data.get_read_instruction_for_host(
         "test",
@@ -72,6 +84,50 @@ class DeterministicDataTest(tf.test.TestCase, parameterized.TestCase):
     name2len = {"test": 9}
     self.assertEqual(
         expected.to_absolute(name2len), actual.to_absolute(name2len))
+
+  @parameterized.parameters(
+      # host_id, host_count, drop_remainder, spec, exected_spec_for_host
+      # train split has 9 examples.
+      (0, 1, True, "train", "train[0:9]"),
+      (0, 2, True, "train", "train[0:4]"),
+      (1, 2, True, "train", "train[4:8]"),  # Last example gets dropped.
+      (0, 3, True, "train", "train[0:3]"),
+      (1, 3, True, "train", "train[3:6]"),
+      (2, 3, True, "train", "train[6:9]"),
+      (0, 1, False, "train", "train[0:9]"),
+      (0, 2, False, "train", "train[0:5]"),  # First host gets an extra example.
+      (1, 2, False, "train", "train[5:9]"),
+      # test split has 8 examples.
+      (0, 3, False, "test", "test[0:3]"),  # First 2 hosts get 1 example each.
+      (1, 3, False, "test", "test[3:6]"),
+      (2, 3, False, "test", "test[6:8]"),
+      # Subsplits.
+      (0, 2, True, "train[:50%]", "train[0:2]"),
+      (1, 2, True, "train[:50%]", "train[2:4]"),
+      (0, 2, True, "train[3:7]", "train[3:5]"),
+      (1, 2, True, "train[3:7]", "train[5:7]"),
+      (0, 2, True, "train[3:8]", "train[3:5]"),  # Last example gets dropped.
+      (1, 2, True, "train[3:8]", "train[5:7]"),
+      # 2 splits.
+      (0, 2, True, "train[3:7]+test", "train[3:5]+test[0:4]"),
+      (1, 2, True, "train[3:7]+test", "train[5:7]+test[4:8]"),
+      # First host gets an extra example.
+      (0, 2, False, "train[3:8]+test[:5]", "train[3:6]+test[0:3]"),
+      (1, 2, False, "train[3:8]+test[:5]", "train[6:8]+test[3:5]"),
+  )
+  def test_get_read_instruction_for_host(self, host_id: int, host_count: int,
+                                         drop_remainder: bool, spec: str,
+                                         expected_spec_for_host: str):
+
+    actual_spec_for_host = deterministic_data.get_read_instruction_for_host(
+        spec,
+        dataset_info=FakeDatasetInfo(),
+        host_id=host_id,
+        host_count=host_count,
+        drop_remainder=drop_remainder)
+    expected_spec_for_host = tfds.core.ReadInstruction.from_spec(
+        expected_spec_for_host)
+    self.assertEqual(str(actual_spec_for_host), str(expected_spec_for_host))
 
   @parameterized.parameters(
       (0, 0),  # No hosts.

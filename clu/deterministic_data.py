@@ -52,6 +52,8 @@ Synopsis for deterministic training with multiple hosts:
 
 """
 
+import functools
+import operator
 from typing import Callable, Dict, Optional, Sequence, Union
 
 from absl import logging
@@ -81,10 +83,44 @@ class DatasetBuilder(typing_extensions.Protocol):
     ...
 
 
+def _shard_read_instruction(absolute_instruction, *, name2len: Dict[str, int],
+                            host_id: int, host_count: int,
+                            drop_remainder: bool) -> tfds.core.ReadInstruction:
+  """Shards a single ReadInstruction. See get_read_instruction_for_host()."""
+  start = absolute_instruction.from_ or 0
+  end = absolute_instruction.to or name2len[absolute_instruction.splitname]
+  assert end >= start, f"start={start}, end={end}"
+  num_examples = end - start
+
+  examples_per_host = num_examples // host_count
+  shard_start = start + examples_per_host * host_id
+  shard_end = start + examples_per_host * (host_id + 1)
+
+  # Handle remaining examples.
+  num_unused_examples = num_examples - examples_per_host * host_count
+  assert num_unused_examples >= 0, num_unused_examples
+  assert num_unused_examples < host_count, num_unused_examples
+  if num_unused_examples > 0:
+    if drop_remainder:
+      logging.warning("Dropping %d examples of %d examples (host count: %d).",
+                      num_unused_examples, num_examples, host_count)
+    else:
+      # The first `num_unused_examples` hosts get one extra example.
+      shard_start += min(host_id, num_unused_examples)
+      shard_end += min(host_id + 1, num_unused_examples)
+
+  return tfds.core.ReadInstruction(
+      absolute_instruction.splitname,
+      from_=shard_start,
+      to=shard_end,
+      unit="abs")
+
+
 def get_read_instruction_for_host(
     split: str,
-    num_examples: int,
+    num_examples: Optional[int] = None,
     *,
+    dataset_info: Optional[tfds.core.DatasetInfo] = None,
     host_id: Optional[int] = None,
     host_count: Optional[int] = None,
     drop_remainder: bool = True) -> tfds.core.ReadInstruction:
@@ -102,8 +138,14 @@ def get_read_instruction_for_host(
     batches = int(np.ceil(num_examples / global_batch_size))
 
   Args:
-    split: Name of the dataset split to use.
-    num_examples: Number of examples of the split.
+    split: Name of the dataset split to use or TFDS spec (e.g.
+      `train[:800]+validation[:100]'). If you use the spec you must pass
+      dataset_info. For specs with multiple splits each split is sharded
+      independently of the other splits.
+    num_examples: Deprecated - use dataset_info instead. Number of examples of
+      the split.
+    dataset_info: TFDS dataset info; used to get the number of examples per
+      split.
     host_id: Optional, host index in [0, host_count). Defaults to
       `jax.host_id()`.
     host_count: Optional, number of hosts. Defaults to `jax.host_count`.
@@ -112,9 +154,16 @@ def get_read_instruction_for_host(
       remaining examples will be distributed across the hosts.
 
   Returns:
-    A tfds.core.ReadInstruction specifying the range of examples to use on this
-    host.
+    List of `tfds.core.ReadInstruction` specifying the range of examples to use
+    on this host.
   """
+  if num_examples is not None:
+    logging.warning(
+        "`num_examples` is deprecated. Please pass `dataset_info` instead.")
+  if dataset_info is None:
+    if split not in {tfds.Split.TRAIN, tfds.Split.VALIDATION, tfds.Split.TEST}:
+      raise ValueError(
+          f"Sharding split {split} requires passing `dataset_info`.")
   if host_id is None:
     host_id = jax.host_id()
   if host_count is None:
@@ -124,24 +173,21 @@ def get_read_instruction_for_host(
         f"Invalid combination of host_id ({host_id}) and host_count "
         f"({host_count}).")
 
-  examples_per_host = num_examples // host_count
-  start = examples_per_host * host_id
-  end = examples_per_host * (host_id + 1)
-
-  # Handle remaining examples.
-  num_unused_examples = num_examples - examples_per_host * host_count
-  assert num_unused_examples >= 0, num_unused_examples
-  assert num_unused_examples < host_count, num_unused_examples
-  if num_unused_examples > 0:
-    if drop_remainder:
-      logging.warning("Dropping %d examples of %d examples (host count: %d).",
-                      num_unused_examples, num_examples, host_count)
-    else:
-      # The first `num_unused_examples` hosts get one extra example.
-      start += min(host_id, num_unused_examples)
-      end += min(host_id + 1, num_unused_examples)
-
-  return tfds.core.ReadInstruction(split, from_=start, to=end, unit="abs")
+  if dataset_info is None:
+    name2len = {split: num_examples}
+  else:
+    name2len = {k: v.num_examples for k, v in dataset_info.splits().items()}
+  read_instruction = tfds.core.ReadInstruction.from_spec(split)
+  sharded_read_instructions = []
+  for ri in read_instruction.to_absolute(name2len):
+    sharded_read_instructions.append(
+        _shard_read_instruction(
+            ri,
+            name2len=name2len,
+            host_id=host_id,
+            host_count=host_count,
+            drop_remainder=drop_remainder))
+  return functools.reduce(operator.add, sharded_read_instructions)
 
 
 def _preprocess_with_per_example_rng(ds: tf.data.Dataset,
