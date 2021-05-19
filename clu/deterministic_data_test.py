@@ -45,6 +45,7 @@ class MyDatasetBuilder:
 @dataclasses.dataclass
 class FakeDatasetInfo:
 
+  @property
   def splits(self):
     return {
         "train": tfds.core.SplitInfo("train", [9], 0),

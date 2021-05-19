@@ -176,7 +176,7 @@ def get_read_instruction_for_host(
   if dataset_info is None:
     name2len = {split: num_examples}
   else:
-    name2len = {k: v.num_examples for k, v in dataset_info.splits().items()}
+    name2len = {k: v.num_examples for k, v in dataset_info.splits.items()}
   read_instruction = tfds.core.ReadInstruction.from_spec(split)
   sharded_read_instructions = []
   for ri in read_instruction.to_absolute(name2len):
