@@ -161,7 +161,7 @@ def get_read_instruction_for_host(
     logging.warning(
         "`num_examples` is deprecated. Please pass `dataset_info` instead.")
   if dataset_info is None:
-    if split not in {tfds.Split.TRAIN, tfds.Split.VALIDATION, tfds.Split.TEST}:
+    if any(special in split for special in ["[", "]", "+"]):
       raise ValueError(
           f"Sharding split {split} requires passing `dataset_info`.")
   if host_id is None:
