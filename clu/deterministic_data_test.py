@@ -253,20 +253,6 @@ class DeterministicDataTest(tf.test.TestCase, parameterized.TestCase):
          "mask": tf.concat([tf.ones(12, bool), tf.zeros(8, bool)], axis=0)},
         next(iter(padded_dataset.batch(20))))
 
-  def test_pad_dataset_with_none_dimension(self):
-    with tfds.testing.mock_data(num_examples=1):
-      dataset = tfds.load("oxford_iiit_pet", split="test")
-      padded_dataset = deterministic_data.pad_dataset(dataset, batch_dims=[2])
-      it = iter(padded_dataset)
-      normal_example = next(it)
-      padded_example = next(it)
-      self.assertEqual(normal_example["mask"], True)
-      self.assertEqual(padded_example["mask"], False)
-      self.assertEqual(padded_example["image"].shape, (1, 1, 3))
-      self.assertEqual(padded_example["segmentation_mask"].shape, (1, 1, 1))
-      self.assertNotEqual(normal_example["image"].shape[:2], (1, 1))
-      self.assertNotEqual(normal_example["segmentation_mask"].shape[:2], (1, 1))
-
   @parameterized.parameters(*itertools.product(range(20), range(1, 4)))
   def test_same_cardinality_on_all_hosts(self, num_examples: int,
                                          host_count: int):

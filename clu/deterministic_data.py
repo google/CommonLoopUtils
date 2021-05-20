@@ -264,18 +264,8 @@ def pad_dataset(dataset: tf.data.Dataset, *, batch_dims: Sequence[int],
   if pad_up_to_batches is None:
     pad_up_to_batches = int(np.ceil(cardinality / np.prod(batch_dims)))
 
-  def fake_data(spec):
-    # Pad with zero arrays of the same size as the input. Unknown (`None`)
-    # dimensions get replaced with singleton ones.
-    # For example, unknown dimensions could happen when images have various
-    # sizes (e.g. in `oxford_iiit_pet`).
-    # This workaround is fine as the padded data is never used for computing
-    # loss or metrics in training or inference.
-    fake_dim = 1
-    shape_replaced_none = [(dim or fake_dim) for dim in spec.shape.as_list()]
-    return tf.zeros(shape_replaced_none, spec.dtype)[None]
-
-  filler_element = tf.nest.map_structure(fake_data, dataset.element_spec)
+  filler_element = tf.nest.map_structure(
+      lambda spec: tf.zeros(spec.shape, spec.dtype)[None], dataset.element_spec)
   filler_element["mask"] = [False]
   filler_dataset = tf.data.Dataset.from_tensor_slices(filler_element)
 
@@ -384,7 +374,12 @@ def create_dataset(dataset_builder: DatasetBuilder,
     ds = ds.shuffle(shuffle_buffer_size, seed=rngs.pop()[0])
   ds = ds.repeat(num_epochs)
 
-  # Pad before preprocessing to allow resizing padded data in preprocessing.
+  if preprocess_fn is not None:
+    if rng_available:
+      ds = _preprocess_with_per_example_rng(ds, preprocess_fn, rng=rngs.pop())
+    else:
+      ds = ds.map(preprocess_fn, num_parallel_calls=AUTOTUNE)
+
   if pad_up_to_batches is not None:
     assert isinstance(pad_up_to_batches, int) or pad_up_to_batches == "auto"
     ds = pad_dataset(
@@ -393,12 +388,6 @@ def create_dataset(dataset_builder: DatasetBuilder,
         pad_up_to_batches=(None if pad_up_to_batches == "auto" else
                            pad_up_to_batches),
         cardinality=cardinality)
-
-  if preprocess_fn is not None:
-    if rng_available:
-      ds = _preprocess_with_per_example_rng(ds, preprocess_fn, rng=rngs.pop())
-    else:
-      ds = ds.map(preprocess_fn, num_parallel_calls=AUTOTUNE)
 
   if batch_dims:
     for batch_size in reversed(batch_dims):
