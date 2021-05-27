@@ -133,7 +133,7 @@ def _default_table_value_formatter(value):
 def make_table(
     rows: List[Any],
     *,
-    column_names: Sequence[str] = None,
+    column_names: Optional[Sequence[str]] = None,
     value_formatter: Callable[[Any], str] = _default_table_value_formatter,
     max_lines: Optional[int] = None,
 ) -> str:
