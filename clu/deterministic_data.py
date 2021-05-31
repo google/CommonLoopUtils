@@ -36,7 +36,7 @@ Synopsis for deterministic training with multiple hosts:
   from clu import deterministic_data
 
   rng = jax.random.PRNGKey(42)  # Global RNG (e.g. from config)
-  rng = jax.random.fold_in(rng, jax.host_id())  # Derive RNG for this host.
+  rng = jax.random.fold_in(rng, jax.process_index()) # Derive RNG for this host.
   dataset_builder = tfds.builder(...)
   split = deterministic_data.get_read_instruction_for_host(
       "train", dataset_builder.info.splits["train"].num_examples)
@@ -147,7 +147,7 @@ def get_read_instruction_for_host(
     dataset_info: TFDS dataset info; used to get the number of examples per
       split.
     host_id: Optional, host index in [0, host_count). Defaults to
-      `jax.host_id()`.
+      `jax.process_index()`.
     host_count: Optional, number of hosts. Defaults to `jax.host_count`.
     drop_remainder: If True drop the remaining examples (at the end of the
       dataset) that cannot be equally distributed across hosts. If False the
@@ -165,9 +165,9 @@ def get_read_instruction_for_host(
       raise ValueError(
           f"Sharding split {split} requires passing `dataset_info`.")
   if host_id is None:
-    host_id = jax.host_id()
+    host_id = jax.process_index()
   if host_count is None:
-    host_count = jax.host_count()
+    host_count = jax.process_count()
   if host_id < 0 or host_id >= host_count or host_count < 1:
     raise ValueError(
         f"Invalid combination of host_id ({host_id}) and host_count "

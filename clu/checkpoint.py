@@ -379,7 +379,7 @@ class MultihostCheckpoint(Checkpoint):
       tf_state: A dictionary of TensorFlow `Trackable` to be serialized, for
         example a dataset iterator.
       host_id: Host ID used to construct the `base_directory`. Taken from
-        `jax.host_id()` if not specified.
+        `jax.process_index()` if not specified.
       max_to_keep: Number of checkpoints to keep in the directory. If there are
         more checkpoints than specified by this number, then the oldest
         checkpoints are removed.
@@ -390,7 +390,7 @@ class MultihostCheckpoint(Checkpoint):
     multihost_base_directory = multihost_base_directory.rstrip("/")
     self.multihost_base_directory = multihost_base_directory
     if host_id is None:
-      host_id = jax.host_id()
+      host_id = jax.process_index()
     base_directory = f"{multihost_base_directory}-{host_id}"
     super().__init__(
         base_directory,

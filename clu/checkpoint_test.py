@@ -245,11 +245,11 @@ class CheckpointTest(tf.test.TestCase):
 
 class MultihostCheckpoint(tf.test.TestCase):
 
-  @mock.patch("jax.host_id")
-  def test_initialize_mkdir(self, host_id_mock):
+  @mock.patch("jax.process_index")
+  def test_initialize_mkdir(self, process_index_mock):
     multihost_base_dir = os.path.join(tempfile.mkdtemp(), "test")
     state = TrainState(step=1)
-    host_id_mock.return_value = 0
+    process_index_mock.return_value = 0
     base_dir = f"{multihost_base_dir}-0"
     ckpt = checkpoint.MultihostCheckpoint(multihost_base_dir)
     self.assertIsNone(ckpt.latest_checkpoint)
@@ -258,13 +258,13 @@ class MultihostCheckpoint(tf.test.TestCase):
     self.assertIsNotNone(ckpt.latest_checkpoint)
     self.assertTrue(os.path.isdir(base_dir))
 
-  @mock.patch("jax.host_id")
-  def test_synchronize_multiple_hosts(self, host_id_mock):
+  @mock.patch("jax.process_index")
+  def test_synchronize_multiple_hosts(self, process_index_mock):
     multihost_base_dir = os.path.join(tempfile.mkdtemp(), "test")
     state = TrainState(step=1)
-    host_id_mock.return_value = 0
+    process_index_mock.return_value = 0
     ckpt_0 = checkpoint.MultihostCheckpoint(multihost_base_dir)
-    host_id_mock.return_value = 1
+    process_index_mock.return_value = 1
     ckpt_1 = checkpoint.MultihostCheckpoint(multihost_base_dir)
     # Initialize both at step=1.
     state_0 = ckpt_0.restore_or_initialize(state)
@@ -278,9 +278,9 @@ class MultihostCheckpoint(tf.test.TestCase):
     state_1 = state_1.replace(step=3)
     ckpt_1.save(state_1)
     # Reload both at step=2.
-    host_id_mock.return_value = 0
+    process_index_mock.return_value = 0
     ckpt_0 = checkpoint.MultihostCheckpoint(multihost_base_dir)
-    host_id_mock.return_value = 1
+    process_index_mock.return_value = 1
     ckpt_1 = checkpoint.MultihostCheckpoint(multihost_base_dir)
     self.assertEqual(ckpt_0.latest_checkpoint,
                      ckpt_0.get_latest_checkpoint_to_restore_from())
