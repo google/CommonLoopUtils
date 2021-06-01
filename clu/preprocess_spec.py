@@ -50,11 +50,24 @@ import typing_extensions
 
 # Feature dictionary. Arbitrary nested dictionary with string keys and
 # tf.Tensor as leaves.
-Features = Dict[str, Union[tf.Tensor, "Features"]]  # pytype: disable=not-supported-yet
+Tensor = Union[tf.Tensor, tf.RaggedTensor, tf.SparseTensor]
+Features = Dict[str, Union[Tensor, "Features"]]  # pytype: disable=not-supported-yet
 # Feature name for the random seed for tf.random.stateless_* ops.
 SEED_KEY = "seed"
 # Regex that finds upper case characters.
 _CAMEL_CASE_RGX = re.compile(r"(?<!^)(?=[A-Z])")
+
+
+def _describe_features(features: Features) -> str:
+  description = {}
+  for k, v in features.items():
+    if isinstance(v, (tf.Tensor, tf.RaggedTensor, tf.SparseTensor)):
+      description[k] = f"{v.dtype.name}{list(v.shape)}"
+    elif isinstance(v, dict):
+      description[k] = _describe_features(v)
+    else:
+      raise ValueError(f"Unsupported type {type(v)} at feature {k}.")
+  return str(description)
 
 
 @typing_extensions.runtime_checkable
@@ -153,12 +166,15 @@ class PreprocessFn:
 
   def __call__(self, features: Features) -> Features:
     """Sequentially applies all `self.ops` and returns the result."""
-    logging.info("Features before preprocessing: %s", features)
+    logging.info("Features before preprocessing: %s",
+                 _describe_features(features))
     features = features.copy()
     for op in self.ops:
       features = op(features)
-      logging.info("Features after op %s: %s", op, features)
-    logging.info("Features after preprocessing: %s", features)
+      logging.info("Features after op %s:\n%s", op,
+                   _describe_features(features))
+    logging.info("Features after preprocessing: %s",
+                 _describe_features(features))
     if self.only_jax_types:
       features = OnlyJaxTypes()(features)
     return features
