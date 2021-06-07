@@ -151,7 +151,7 @@ class OnlyJaxTypes:
       elif isinstance(features[name], tf.RaggedTensor):
         del features[name]
         logging.warning(
-            "Removing feature %r because ragged tensors are not support in"
+            "Removing feature %r because ragged tensors are not support in "
             "JAX.", name)
     features = traverse_util.unflatten_dict(features)
     return features  # pytype: disable=bad-return-type
