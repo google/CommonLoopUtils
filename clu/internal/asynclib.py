@@ -80,7 +80,7 @@ class Pool:
     but there might be more exceptions
 
     Side-effect:
-      If any of the functions raised an exception, the the first of these
+      If any of the functions raised an exception, then the first of these
       exceptions is reraised.
     """
     self._pool.shutdown(wait=True)
