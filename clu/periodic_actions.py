@@ -52,6 +52,22 @@ def _wait_jax_async_dispatch():
   _squareit(jnp.array(0.)).block_until_ready()
 
 
+def _format_secs(secs: float):
+  """Formats seconds like 123456.7 to strings like "1d10h17m"."""
+  s = ""
+  days = int(secs / (3600 * 24))
+  secs -= days * 3600 * 24
+  if days:
+    s += f"{days}d"
+  hours = int(secs / 3600)
+  secs -= hours * 3600
+  if hours:
+    s += f"{hours}h"
+  mins = int(secs / 60)
+  s += f"{mins}m"
+  return s
+
+
 class PeriodicAction(abc.ABC):
   """Abstract base class for perodic actions.
 
@@ -180,10 +196,10 @@ class ReportProgress(PeriodicAction):
     if self._num_train_steps:
       eta_seconds = (self._num_train_steps - step) / steps_per_sec
       message += (f", {100 * step / self._num_train_steps:.1f}% @{step}, "
-                  f"ETA: {eta_seconds / 60:.0f} min")
+                  f"ETA: {_format_secs(eta_seconds)}")
     if self._time_per_part:
       total = time.time() - self._t0
-      message += " ({:.0f} min : {})".format(total / 60, ", ".join(
+      message += " ({} : {})".format(_format_secs(total), ", ".join(
           f"{100 * dt / total:.1f}% {name}"
           for name, dt in sorted(self._time_per_part.items())))
     # This should be relatively cheap so we can do it in the same main thread.
