@@ -17,6 +17,7 @@
 import contextlib
 import sys
 import time
+from typing import Any, List, Mapping, Tuple, Union
 
 from absl import logging
 
@@ -70,3 +71,28 @@ def check_param(value, *, ndim=None, dtype=jnp.float32):
     raise ValueError(f"Expected ndim={ndim}, got ndim={value.ndim}")
   if dtype is not None and value.dtype != dtype:
     raise ValueError(f"Expected dtype={dtype}, got dtype={value.dtype}")
+
+
+def flatten_dict(
+    d: Mapping[str, Any], prefix: Tuple[str, ...] = ()
+) -> List[Tuple[str, Union[int, float, str]]]:
+  """Returns a sequence of flattened (k, v) pairs for tfsummary.hparams().
+
+  Args:
+    d: A dict-like object that has an `.item()` method.
+    prefix: Prefix to add to keys in `d`.
+
+  Returns:
+    Sequence of (k, v) pairs where k is the flattened key with individual
+    subkeys separated by dots.
+  """
+  ret = []
+  for k, v in d.items():
+    if isinstance(v, Mapping):
+      ret += flatten_dict(v, prefix + (k,))
+    elif isinstance(v, (list, tuple)):
+      ret += flatten_dict({str(idx): value for idx, value in enumerate(v)},
+                          prefix + (k,))
+    else:
+      ret.append((".".join(prefix + (k,)), v if v is not None else ""))
+  return ret
