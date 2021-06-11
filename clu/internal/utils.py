@@ -84,11 +84,12 @@ def flatten_dict(
 
   Returns:
     Sequence of (k, v) pairs where k is the flattened key with individual
-    subkeys separated by dots.
+    subkeys separated by dots. `None` values are replaced by the empty string.
   """
   ret = []
   for k, v in d.items():
-    if isinstance(v, Mapping):
+    # Note `ml_collections.ConfigDict` is not (yet) a `Mapping`.
+    if isinstance(v, Mapping) or hasattr(v, "items"):
       ret += flatten_dict(v, prefix + (k,))
     elif isinstance(v, (list, tuple)):
       ret += flatten_dict({str(idx): value for idx, value in enumerate(v)},

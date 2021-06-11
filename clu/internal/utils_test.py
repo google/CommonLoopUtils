@@ -17,6 +17,7 @@ from unittest import mock
 from absl.testing import absltest
 from clu.internal import utils
 import jax.numpy as jnp
+import ml_collections
 
 
 class TestError(BaseException):
@@ -86,6 +87,17 @@ class HelpersTest(absltest.TestCase):
       utils.check_param(a, ndim=0, dtype=jnp.int32)
     utils.check_param(a, ndim=0)  # should work
     utils.check_param(a, ndim=0, dtype=jnp.float32)  # should also work
+
+  def test_flatten_dict(self):
+    self.assertEqual(
+        utils.flatten_dict(
+            ml_collections.ConfigDict({
+                "x": 1,
+                "y": None,
+                "z": ml_collections.ConfigDict({
+                    "a": "bc",
+                })
+            })), [("x", 1), ("y", ""), ("z.a", "bc")])
 
 
 if __name__ == "__main__":
