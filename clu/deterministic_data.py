@@ -293,7 +293,8 @@ def create_dataset(dataset_builder: DatasetBuilder,
                    shuffle_buffer_size: int = 10_000,
                    prefetch_size: int = 4,
                    pad_up_to_batches: Optional[Union[int, str]] = None,
-                   cardinality: Optional[int] = None) -> tf.data.Dataset:
+                   cardinality: Optional[int] = None,
+                   drop_remainder: bool = True) -> tf.data.Dataset:
   """Creates standard input pipeline (shuffle, preprocess, batch).
 
   Args:
@@ -336,6 +337,7 @@ def create_dataset(dataset_builder: DatasetBuilder,
     cardinality: Number of examples in the dataset. Only needed when
       `pad_up_to_batches` is specified and the cardinality cannot be retrieved
       via `ds.cardinalty()` (e.g. because of `ds.filter()`).
+    drop_remainder: Whether to drop remainders when batching.
 
   Returns:
     The dataset with preprocessed and batched examples.
@@ -391,7 +393,7 @@ def create_dataset(dataset_builder: DatasetBuilder,
 
   if batch_dims:
     for batch_size in reversed(batch_dims):
-      ds = ds.batch(batch_size, drop_remainder=True)
+      ds = ds.batch(batch_size, drop_remainder=drop_remainder)
 
   return ds.prefetch(prefetch_size)
 
@@ -416,7 +418,8 @@ def create_distributed_dataset(
     shuffle_buffer_size: int = 10_000,
     prefetch_size: int = 4,
     pad_up_to_batches: Optional[int] = None,
-    cardinality: Optional[int] = None) -> tf.data.Dataset:
+    cardinality: Optional[int] = None,
+    drop_remainder: bool = True) -> tf.data.Dataset:
   """Creates standard input pipeline (shuffle, preprocess, batch).
 
   Args:
@@ -453,6 +456,7 @@ def create_distributed_dataset(
     cardinality: Number of examples in the dataset. Only needed when
       `pad_up_to_batches` is specified and the cardinality cannot be retrieved
       via `ds.cardinalty()` (e.g. because of `ds.filter()`).
+    drop_remainder: Whether to drop remainders when batching.
 
   Returns:
     The dataset with preprocessed and batched examples.
@@ -491,6 +495,7 @@ def create_distributed_dataset(
         shuffle_buffer_size=shuffle_buffer_size,
         prefetch_size=prefetch_size,
         pad_up_to_batches=pad_up_to_batches,
-        cardinality=cardinality)
+        cardinality=cardinality,
+        drop_remainder=drop_remainder)
 
   return strategy.distribute_datasets_from_function(dataset_fn)
