@@ -124,7 +124,7 @@ def get_read_instruction_for_host(
     host_id: Optional[int] = None,
     host_count: Optional[int] = None,
     drop_remainder: bool = True) -> tfds.core.ReadInstruction:
-  """Returns a ReadInstruction of the data range for this host.
+  """Returns a `ReadInstruction` of the data ranges for this host.
 
   In a distributed setting all hosts should get the same number of examples.
   This can exclude a few (< host_count) examples.
@@ -139,9 +139,9 @@ def get_read_instruction_for_host(
 
   Args:
     split: Name of the dataset split to use or TFDS spec (e.g.
-      `train[:800]+validation[:100]'). If you use the spec you must pass
-      dataset_info. For specs with multiple splits each split is sharded
-      independently of the other splits.
+      `train[:800]+validation[:100]`). If you use the spec you must pass
+        dataset_info. For specs with multiple splits each split is sharded
+        independently of the other splits.
     num_examples: Deprecated - use dataset_info instead. Number of examples of
       the split.
     dataset_info: TFDS dataset info; used to get the number of examples per
@@ -152,10 +152,6 @@ def get_read_instruction_for_host(
     drop_remainder: If True drop the remaining examples (at the end of the
       dataset) that cannot be equally distributed across hosts. If False the
       remaining examples will be distributed across the hosts.
-
-  Returns:
-    List of `tfds.core.ReadInstruction` specifying the range of examples to use
-    on this host.
   """
   if num_examples is not None:
     logging.warning(
