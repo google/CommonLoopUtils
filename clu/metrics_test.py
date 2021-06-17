@@ -55,12 +55,14 @@ class MetricsTest(tf.test.TestCase, parameterized.TestCase):
         dict(
             logits=jnp.array([[1., 0.], [0., 1.]]),
             labels=jnp.array([0, 0]),
+            example_loss=jnp.array([0, 4.2]),
             learning_rate=0.02,
             loss=jnp.array(4.2),
         ),
         dict(
             logits=jnp.array([[1., 2.], [3., 4.]]),
             labels=jnp.array([1, 1]),
+            example_loss=jnp.array([1.7, 0]),
             learning_rate=0.01,
             loss=jnp.array(1.7),
         ),
@@ -184,7 +186,12 @@ class MetricsTest(tf.test.TestCase, parameterized.TestCase):
   def test_loss_average(self, reduce):
     self.assertAllClose(
         self.make_compute_metric(metrics.Average.from_output("loss"),
-                                 reduce)(self.model_outputs),
+                                 reduce)(self.model_outputs_masked),
+        self.model_outputs_stacked["loss"].mean())
+    self.assertAllClose(
+        self.make_compute_metric(
+            metrics.Average.from_output("example_loss"),
+            reduce)(self.model_outputs_masked),
         self.model_outputs_stacked["loss"].mean())
 
   @parameterized.named_parameters(
@@ -194,7 +201,12 @@ class MetricsTest(tf.test.TestCase, parameterized.TestCase):
   def test_loss_std(self, reduce):
     self.assertAllClose(
         self.make_compute_metric(metrics.Std.from_output("loss"),
-                                 reduce)(self.model_outputs),
+                                 reduce)(self.model_outputs_masked),
+        self.model_outputs_stacked["loss"].std(),
+        atol=1e-4)
+    self.assertAllClose(
+        self.make_compute_metric(metrics.Std.from_output("example_loss"),
+                                 reduce)(self.model_outputs_masked),
         self.model_outputs_stacked["loss"].std(),
         atol=1e-4)
 

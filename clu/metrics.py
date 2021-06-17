@@ -60,6 +60,7 @@ Synopsis:
 
 from typing import Any, Callable, Dict, Optional, Sequence, Tuple
 
+from absl import logging
 
 from clu.internal import utils
 import flax
@@ -159,14 +160,44 @@ class Metric:
 
   @classmethod
   def from_output(cls, name: str):  # pylint: disable=g-bare-generic
-    """Calls `cls.from_model_output` with model output named `name`."""
+    """Calls `cls.from_model_output` with model output named `name`.
+
+    Synopsis:
+
+      @flax.struct.dataclass
+      class Metrics(Collection):
+        loss: Average.from_output('loss')
+
+    Note that the model output "mask" will also be forwarded to the metric, but
+    only if it has the same first dimension as the model output specified by
+    `name`. This allows to use metrics created by this function both with named
+    outputs that exist per-example, as well as with model outputs that only
+    exist per batch (as for example "loss" often does).
+
+    Args:
+      name: Name of the model output that should be passed as first argument to
+        `cls.from_model_output()`.
+
+    Returns:
+      A `Metric` derived from `cls` that calls `.from_model_output()` with as
+      a first argument the model output specified by `name`.
+    """
 
     @flax.struct.dataclass
     class FromOutput(cls):
+      """Wrapper Metric class that collects output named `name`."""
 
       @classmethod
       def from_model_output(cls, **model_output) -> Metric:
-        return super().from_model_output(jnp.array(model_output[name]))
+        output = jnp.array(model_output[name])
+        mask = model_output.get("mask")
+        if mask is not None and (output.shape or [0])[0] != mask.shape[0]:
+          logging.warning(
+              "Ignoring mask for model output '%s' because of shape mismatch: "
+              "output.shape=%s vs. mask.shape=%s", name,
+              output.shape, mask.shape)
+          mask = None
+        return super().from_model_output(output, mask=mask)
 
     return FromOutput
 
