@@ -151,7 +151,13 @@ class MetricsTest(tf.test.TestCase, parameterized.TestCase):
 
     self.assertAllClose(
         self.make_compute_metric(metrics.Average.from_fun(accuracy),
-                                 reduce)(self.model_outputs), 0.75)
+                                 reduce)(self.model_outputs),
+        self.results["train_accuracy"])
+
+    self.assertAllClose(
+        self.make_compute_metric(metrics.Average.from_fun(accuracy),
+                                 reduce)(self.model_outputs_masked),
+        self.results_masked["train_accuracy"])
 
   @parameterized.named_parameters(
       ("Average", metrics.Average),
@@ -171,7 +177,7 @@ class MetricsTest(tf.test.TestCase, parameterized.TestCase):
   def test_accuracy(self, reduce):
     self.assertAllClose(
         self.make_compute_metric(metrics.Accuracy, reduce)(self.model_outputs),
-        0.75)
+        self.results["train_accuracy"])
 
   def test_last_value_asserts_shape(self):
     metric1 = metrics.LastValue.from_model_output(jnp.arange(3.))

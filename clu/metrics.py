@@ -147,16 +147,41 @@ class Metric:
 
   @classmethod
   def from_fun(cls, fun: Callable):  # pylint: disable=g-bare-generic
-    """Calls `cls.from_model_output` with the return value from `fun`."""
+    """Calls `cls.from_model_output` with the return value from `fun`.
+
+    Note that the model output "mask" will also be forwarded to the metric, but
+    only if it has the same first dimension as the value returned by `fun` when
+    called with keyword arguments from `model_output`.
+    This allows to use metrics created by this function both with values
+    that exist per-example, as well as with values that only
+    exist per batch.
+
+    Args:
+      fun: Function to be applied to model output.
+
+    Returns:
+      A `Metric` derived from `cls` that calls `.from_model_output()` with
+      the first argument as the value returned by `fun`
+      when called with keyword arguments from `model_output`.
+    """
 
     @flax.struct.dataclass
-    class Fun(cls):
+    class FromFun(cls):
+      """Wrapper Metric class that collects output after applying `fun`."""
 
       @classmethod
       def from_model_output(cls, **model_output) -> Metric:
-        return super().from_model_output(fun(**model_output))
+        mask = model_output.get("mask")
+        output = fun(**model_output)
+        if mask is not None and (output.shape or [0])[0] != mask.shape[0]:
+          logging.warning(
+              "Ignoring mask for fun(**model output)"
+              "because of shape mismatch: "
+              "output.shape=%s vs. mask.shape=%s", output.shape, mask.shape)
+          mask = None
+        return super().from_model_output(output, mask=mask)
 
-    return Fun
+    return FromFun
 
   @classmethod
   def from_output(cls, name: str):  # pylint: disable=g-bare-generic
