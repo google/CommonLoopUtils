@@ -83,9 +83,10 @@ class DatasetBuilder(typing_extensions.Protocol):
     ...
 
 
-def _shard_read_instruction(absolute_instruction, *, name2len: Dict[str, int],
-                            host_id: int, host_count: int,
-                            drop_remainder: bool) -> tfds.core.ReadInstruction:
+def _shard_read_instruction(
+    absolute_instruction, *, name2len: Dict[str, int], host_id: int,
+    host_count: int, drop_remainder: bool,
+    balance_remainder_on_hosts: bool) -> tfds.core.ReadInstruction:
   """Shards a single ReadInstruction. See get_read_instruction_for_host()."""
   start = absolute_instruction.from_ or 0
   end = absolute_instruction.to or name2len[absolute_instruction.splitname]
@@ -97,7 +98,7 @@ def _shard_read_instruction(absolute_instruction, *, name2len: Dict[str, int],
   shard_end = start + examples_per_host * (host_id + 1)
 
   # Handle remaining examples.
-  num_unused_examples = num_examples - examples_per_host * host_count
+  num_unused_examples = num_examples % host_count
   assert num_unused_examples >= 0, num_unused_examples
   assert num_unused_examples < host_count, num_unused_examples
   if num_unused_examples > 0:
@@ -105,9 +106,13 @@ def _shard_read_instruction(absolute_instruction, *, name2len: Dict[str, int],
       logging.warning("Dropping %d examples of %d examples (host count: %d).",
                       num_unused_examples, num_examples, host_count)
     else:
-      # The first `num_unused_examples` hosts get one extra example.
-      shard_start += min(host_id, num_unused_examples)
-      shard_end += min(host_id + 1, num_unused_examples)
+      if balance_remainder_on_hosts:
+        shard_start += min(host_id, num_unused_examples)
+        shard_end += min(host_id + 1, num_unused_examples)
+      else:  # assign remainder to the first host
+        shard_end += num_unused_examples
+        if host_id > 0:
+          shard_start += num_unused_examples
 
   return tfds.core.ReadInstruction(
       absolute_instruction.splitname,
@@ -123,7 +128,8 @@ def get_read_instruction_for_host(
     dataset_info: Optional[tfds.core.DatasetInfo] = None,
     host_id: Optional[int] = None,
     host_count: Optional[int] = None,
-    drop_remainder: bool = True) -> tfds.core.ReadInstruction:
+    drop_remainder: bool = True,
+    balance_remainder_on_hosts: bool = True) -> tfds.core.ReadInstruction:
   """Returns a `ReadInstruction` of the data ranges for this host.
 
   In a distributed setting all hosts should get the same number of examples.
@@ -152,6 +158,11 @@ def get_read_instruction_for_host(
     drop_remainder: If True drop the remaining examples (at the end of the
       dataset) that cannot be equally distributed across hosts. If False the
       remaining examples will be distributed across the hosts.
+    balance_remainder_on_hosts: If remainder exists and is not dropped, this is
+      to decide how to distribute the remaining examples across the hosts:
+      - True to try our best to distribute examples across the hosts evenly.
+        I.e., given i<j, host(i) has at most one more examples than host(j).
+      - False to assign all remaining examples to the FIRST host.
   """
   if num_examples is not None:
     logging.warning(
@@ -182,7 +193,8 @@ def get_read_instruction_for_host(
             name2len=name2len,
             host_id=host_id,
             host_count=host_count,
-            drop_remainder=drop_remainder))
+            drop_remainder=drop_remainder,
+            balance_remainder_on_hosts=balance_remainder_on_hosts))
   return functools.reduce(operator.add, sharded_read_instructions)
 
 
