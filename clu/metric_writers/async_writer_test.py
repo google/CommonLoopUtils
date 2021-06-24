@@ -71,6 +71,32 @@ class AsyncWriterTest(tf.test.TestCase):
             "b": 0.007
         })
     ])
+    self.sync_writer.flush.assert_called_once()
+
+  def test_ensure_flushes_with_multiple_writers(self):
+    sync_writer1 = mock.create_autospec(interface.MetricWriter)
+    writer1 = async_writer.AsyncWriter(sync_writer1)
+    sync_writer2 = mock.create_autospec(interface.MetricWriter)
+    writer2 = async_writer.AsyncWriter(sync_writer2)
+
+    with async_writer.ensure_flushes(writer1, writer2):
+      writer1.write_scalars(0, {"a": 3, "b": 0.15})
+      writer2.write_scalars(2, {"a": 5, "b": 0.007})
+
+    sync_writer1.write_scalars.assert_has_calls(
+        [mock.call(step=0, scalars={
+            "a": 3,
+            "b": 0.15
+        })])
+
+    sync_writer2.write_scalars.assert_has_calls(
+        [mock.call(step=2, scalars={
+            "a": 5,
+            "b": 0.007
+        })])
+
+    sync_writer1.flush.assert_called_once()
+    sync_writer2.flush.assert_called_once()
 
   def test_flush_before_close(self):
     self.writer.close()

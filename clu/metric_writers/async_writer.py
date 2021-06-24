@@ -105,8 +105,12 @@ class AsyncMultiWriter(multi_writer.MultiWriter):
 
 
 @contextlib.contextmanager
-def ensure_flushes(writer: interface.MetricWriter):
+def ensure_flushes(*writers: interface.MetricWriter):
+  """Context manager which ensures that one or more writers are flushed."""
   try:
-    yield writer
+    # The caller should not need to use the yielded value, but we yield
+    # the first writer to stay backwards compatible for a single writer.
+    yield writers[0]
   finally:
-    writer.flush()
+    for writer in writers:
+      writer.flush()
