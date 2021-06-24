@@ -52,6 +52,7 @@ Synopsis for deterministic training with multiple hosts:
 
 """
 
+import enum
 import functools
 import operator
 from typing import Callable, Dict, Optional, Sequence, Union
@@ -83,9 +84,17 @@ class DatasetBuilder(typing_extensions.Protocol):
     ...
 
 
-def _shard_read_instruction(absolute_instruction, *, name2len: Dict[str, int],
-                            host_id: int, host_count: int,
-                            drop_remainder: bool) -> tfds.core.ReadInstruction:
+class RemainderOptions(enum.Enum):
+  """The options for handling the last remaining batch of examples."""
+  DROP = 0  # drop all remaining examples
+  BALANCE_ON_PROCESSES = 1  # distribute on all processes as evenly as possible
+  ON_FIRST_PROCESS = 2  # put all remaining examples on the first process
+
+
+def _shard_read_instruction(
+    absolute_instruction, *, name2len: Dict[str,
+                                            int], host_id: int, host_count: int,
+    remainder_options: RemainderOptions) -> tfds.core.ReadInstruction:
   """Shards a single ReadInstruction. See get_read_instruction_for_host()."""
   start = absolute_instruction.from_ or 0
   end = absolute_instruction.to or name2len[absolute_instruction.splitname]
@@ -97,17 +106,22 @@ def _shard_read_instruction(absolute_instruction, *, name2len: Dict[str, int],
   shard_end = start + examples_per_host * (host_id + 1)
 
   # Handle remaining examples.
-  num_unused_examples = num_examples - examples_per_host * host_count
+  num_unused_examples = num_examples % host_count
   assert num_unused_examples >= 0, num_unused_examples
   assert num_unused_examples < host_count, num_unused_examples
   if num_unused_examples > 0:
-    if drop_remainder:
+    if remainder_options == RemainderOptions.DROP:
       logging.warning("Dropping %d examples of %d examples (host count: %d).",
                       num_unused_examples, num_examples, host_count)
-    else:
-      # The first `num_unused_examples` hosts get one extra example.
+    elif remainder_options == RemainderOptions.BALANCE_ON_PROCESSES:
       shard_start += min(host_id, num_unused_examples)
       shard_end += min(host_id + 1, num_unused_examples)
+    elif remainder_options == RemainderOptions.ON_FIRST_PROCESS:
+      shard_end += num_unused_examples
+      if host_id > 0:
+        shard_start += num_unused_examples
+    else:
+      raise ValueError(f"Invalid remainder_options: {remainder_options}")
 
   return tfds.core.ReadInstruction(
       absolute_instruction.splitname,
@@ -123,7 +137,9 @@ def get_read_instruction_for_host(
     dataset_info: Optional[tfds.core.DatasetInfo] = None,
     host_id: Optional[int] = None,
     host_count: Optional[int] = None,
-    drop_remainder: bool = True) -> tfds.core.ReadInstruction:
+    drop_remainder: Optional[bool] = None,
+    remainder_options: RemainderOptions = RemainderOptions.DROP
+) -> tfds.core.ReadInstruction:
   """Returns a `ReadInstruction` of the data ranges for this host.
 
   In a distributed setting all hosts should get the same number of examples.
@@ -149,13 +165,19 @@ def get_read_instruction_for_host(
     host_id: Optional, host index in [0, host_count). Defaults to
       `jax.process_index()`.
     host_count: Optional, number of hosts. Defaults to `jax.host_count`.
-    drop_remainder: If True drop the remaining examples (at the end of the
-      dataset) that cannot be equally distributed across hosts. If False the
-      remaining examples will be distributed across the hosts.
+    drop_remainder: Deprecated - use remainder_options instead.
+    remainder_options: The options to handle the remaining examples.
   """
   if num_examples is not None:
     logging.warning(
         "`num_examples` is deprecated. Please pass `dataset_info` instead.")
+  if drop_remainder is not None:
+    remainder_options = (
+        RemainderOptions.DROP
+        if drop_remainder else RemainderOptions.BALANCE_ON_PROCESSES)
+    logging.warning(
+        "`drop_remainder` is deprecated. Please pass `remainder_options` "
+        "instead. `remainder_options` is reset with %s.", remainder_options)
   if dataset_info is None:
     if any(special in split for special in ["[", "]", "+"]):
       raise ValueError(
@@ -182,7 +204,7 @@ def get_read_instruction_for_host(
             name2len=name2len,
             host_id=host_id,
             host_count=host_count,
-            drop_remainder=drop_remainder))
+            remainder_options=remainder_options))
   return functools.reduce(operator.add, sharded_read_instructions)
 
 

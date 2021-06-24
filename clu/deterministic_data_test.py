@@ -44,12 +44,14 @@ class MyDatasetBuilder:
 
 @dataclasses.dataclass
 class FakeDatasetInfo:
+  train_size: int = 9
+  test_size: int = 8
 
   @property
   def splits(self):
     return {
-        "train": tfds.core.SplitInfo("train", [9], 0),
-        "test": tfds.core.SplitInfo("test", [8], 0)
+        "train": tfds.core.SplitInfo("train", [self.train_size], 0),
+        "test": tfds.core.SplitInfo("test", [self.test_size], 0)
     }
 
 
@@ -126,6 +128,37 @@ class DeterministicDataTest(tf.test.TestCase, parameterized.TestCase):
         host_id=host_id,
         host_count=host_count,
         drop_remainder=drop_remainder)
+    expected_spec_for_host = tfds.core.ReadInstruction.from_spec(
+        expected_spec_for_host)
+    self.assertEqual(str(actual_spec_for_host), str(expected_spec_for_host))
+
+  @parameterized.parameters(
+      # host_id, host_count, balance_remainder, spec, exected_spec_for_host
+      # test split has 10 examples.
+      (0, 1, True, "test", "test[0:10]"),
+      (0, 1, False, "test", "test[0:10]"),
+      (0, 4, True, "test", "test[0:3]"),
+      (1, 4, True, "test", "test[3:6]"),
+      (2, 4, True, "test", "test[6:8]"),
+      (3, 4, True, "test", "test[8:10]"),
+      (0, 4, False, "test", "test[0:4]"),
+      (1, 4, False, "test", "test[4:6]"),
+      (2, 4, False, "test", "test[6:8]"),
+      (3, 4, False, "test", "test[8:10]"),
+  )
+  def test_get_read_instruction_balance_remainder(self, host_id: int,
+                                                  host_count: int,
+                                                  balance_remainder: bool,
+                                                  spec: str,
+                                                  expected_spec_for_host: str):
+    actual_spec_for_host = deterministic_data.get_read_instruction_for_host(
+        spec,
+        dataset_info=FakeDatasetInfo(test_size=10),
+        host_id=host_id,
+        host_count=host_count,
+        remainder_options=deterministic_data.RemainderOptions
+        .BALANCE_ON_PROCESSES if balance_remainder else
+        deterministic_data.RemainderOptions.ON_FIRST_PROCESS)
     expected_spec_for_host = tfds.core.ReadInstruction.from_spec(
         expected_spec_for_host)
     self.assertEqual(str(actual_spec_for_host), str(expected_spec_for_host))
