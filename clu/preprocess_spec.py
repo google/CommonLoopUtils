@@ -104,7 +104,9 @@ def get_all_ops(module_name: str) -> List[Tuple[str, Type[PreprocessOp]]]:
     converted to snake case (MyAwesomeTransform => my_awesome_transform) and
     the second element is the class.
   """
-  is_op = lambda x: dataclasses.is_dataclass(x) and issubclass(x, PreprocessOp)
+  def is_op(x):
+    return (inspect.isclass(x) and dataclasses.is_dataclass(x) and
+            issubclass(x, PreprocessOp))
   op_name = lambda n: _CAMEL_CASE_RGX.sub("_", n).lower()
   members = inspect.getmembers(sys.modules[module_name])
   return [(op_name(name), op) for name, op in members if is_op(op)]
