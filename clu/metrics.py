@@ -318,6 +318,29 @@ class Collection:
   _reduction_counter: _ReductionCounter
 
   @classmethod
+  def create(cls, **metrics: Dict[str, Metric]):
+    """Handy short-cut to define a `Collection` inline.
+
+    Instead declaring a `Collection` dataclass:
+
+      @flax.struct.dataclass
+      class MyMetrics(metrics.Collection):
+        accuracy: metrics.Accuracy
+
+    You can use this function to generate it dynamically:
+
+      Mymetrics = metrics.Collection(accuracy=metrics.Accuracy)
+
+    Args:
+      **metrics: Names and metric classes to use include in the collection.
+
+    Returns:
+      A Collection with provided `metrics`.
+    """
+    return flax.struct.dataclass(
+        type("_InlineCollection", (Collection,), {"__annotations__": metrics}))
+
+  @classmethod
   def _from_model_output(cls, **kwargs) -> "Collection":
     """Creates a `Collection` from model outputs."""
     return cls(
@@ -386,6 +409,10 @@ class Collection:
         for metric_name, metric in vars(self).items()
         if metric_name != "_reduction_counter"
     }
+
+  def unreplicate(self) -> "Collection":
+    """Short-hand for `flax.jax_utils.unreplicate(self)`."""
+    return flax.jax_utils.unreplicate(self)
 
 
 @flax.struct.dataclass

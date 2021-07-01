@@ -216,6 +216,16 @@ class MetricsTest(tf.test.TestCase, parameterized.TestCase):
         self.model_outputs_stacked["loss"].std(),
         atol=1e-4)
 
+  def test_collection_create(self):
+    collection = metrics.Collection.create(
+        accuracy=metrics.Accuracy)
+    self.assertAllClose(
+        collection.single_from_model_output(
+            logits=jnp.array([[-1., 1.], [1., -1.]]),
+            labels=jnp.array([0, 0]),  # i.e. 1st incorrect, 2nd correct
+        ).compute(),
+        {"accuracy": 0.5})
+
   @parameterized.named_parameters(
       ("", False),
       ("_masked", True),
@@ -267,13 +277,13 @@ class MetricsTest(tf.test.TestCase, parameterized.TestCase):
 
     @functools.partial(jax.pmap, axis_name="batch")
     def compute_collection(model_outputs):
-      return Collection.gather_from_model_output(**model_outputs).compute()
+      return Collection.gather_from_model_output(**model_outputs)
 
     if jax.local_device_count() > 1:
       self.assertAllClose(
-          flax.jax_utils.unreplicate(
-              compute_collection(self.model_outputs_masked_stacked
-                                 if masked else self.model_outputs_stacked)),
+          compute_collection(
+              self.model_outputs_masked_stacked if masked else self
+              .model_outputs_stacked).unreplicate().compute(),
           self.results_masked if masked else self.results)
 
   def test_collection_asserts_replication(self):
