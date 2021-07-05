@@ -322,9 +322,12 @@ class Profile(PeriodicAction):
     self._start_session()
 
   def _start_session(self):
-    self._session_running = True
-    self._session_started = time.time()
-    profiler.start(logdir=self._logdir)
+    try:
+      profiler.start(logdir=self._logdir)
+      self._session_running = True
+      self._session_started = time.time()
+    except Exception as e:  # pylint: disable=broad-except
+      logging.exception("Could not start profiling: %s", e)
 
   def _end_session(self, url: Optional[str]):
     platform.work_unit().create_artifact(
