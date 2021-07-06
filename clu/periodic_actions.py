@@ -195,7 +195,8 @@ class ReportProgress(PeriodicAction):
     message = f"{steps_per_sec:.1f} steps/s"
     if self._num_train_steps:
       eta_seconds = (self._num_train_steps - step) / steps_per_sec
-      message += (f", {100 * step / self._num_train_steps:.1f}% @{step}, "
+      message += (f", {100 * step / self._num_train_steps:.1f}% "
+                  f"({step}/{self._num_train_steps}), "
                   f"ETA: {_format_secs(eta_seconds)}")
     if self._time_per_part:
       total = time.time() - self._t0

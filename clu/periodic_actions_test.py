@@ -39,7 +39,7 @@ class ReportProgressTest(tf.test.TestCase, parameterized.TestCase):
       self.assertTrue(hook(4, t))
     # We did 1 step every 0.12s => 8.333 steps/s.
     self.assertEqual(logs.output, [
-        "INFO:absl:Setting work unit notes: 8.3 steps/s, 40.0% @4, ETA: 0m"
+        "INFO:absl:Setting work unit notes: 8.3 steps/s, 40.0% (4/10), ETA: 0m"
     ])
 
   def test_every_secs(self):
@@ -56,7 +56,7 @@ class ReportProgressTest(tf.test.TestCase, parameterized.TestCase):
       self.assertTrue(hook(4, t))
     # We did 1 step every 0.12s => 8.333 steps/s.
     self.assertEqual(logs.output, [
-        "INFO:absl:Setting work unit notes: 8.3 steps/s, 40.0% @4, ETA: 0m"
+        "INFO:absl:Setting work unit notes: 8.3 steps/s, 40.0% (4/10), ETA: 0m"
     ])
 
   def test_without_num_train_steps(self):
@@ -120,7 +120,7 @@ class ReportProgressTest(tf.test.TestCase, parameterized.TestCase):
     with self.assertLogs(level="INFO") as logs:
       self.assertTrue(hook(2))
     self.assertEqual(logs.output, [
-        "INFO:absl:Setting work unit notes: 0.2 steps/s, 20.0% @2, ETA: 0m"
+        "INFO:absl:Setting work unit notes: 0.2 steps/s, 20.0% (2/10), ETA: 0m"
         " (0m : 50.0% test1, 25.0% test2)"
     ])
 
