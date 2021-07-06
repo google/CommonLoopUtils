@@ -20,6 +20,7 @@ from absl import logging
 from clu.metric_writers import interface
 import numpy as np
 
+Array = interface.Array
 Scalar = interface.Scalar
 
 
@@ -33,7 +34,7 @@ class LoggingWriter(interface.MetricWriter):
     ]
     logging.info("[%d] %s", step, ", ".join(values))
 
-  def write_images(self, step: int, images: Mapping[str, np.ndarray]):
+  def write_images(self, step: int, images: Mapping[str, Array]):
     logging.info("[%d] Got images: %s.", step,
                  {k: v.shape for k, v in images.items()})
 
@@ -42,12 +43,12 @@ class LoggingWriter(interface.MetricWriter):
 
   def write_histograms(self,
                        step: int,
-                       arrays: Mapping[str, np.ndarray],
+                       arrays: Mapping[str, Array],
                        num_buckets: Optional[Mapping[str, int]] = None):
     num_buckets = num_buckets or {}
     for key, value in arrays.items():
       histo, bins = _compute_histogram_as_tf(
-          value, num_buckets=num_buckets.get(key))
+          np.asarray(value), num_buckets=num_buckets.get(key))
       if histo is not None:
         logging.info("[%d] Histogram for %r = {%s}", step, key,
                      _get_histogram_as_string(histo, bins))

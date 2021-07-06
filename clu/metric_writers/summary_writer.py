@@ -23,12 +23,12 @@ from typing import Any, Mapping, Optional
 
 from clu.internal import utils
 from clu.metric_writers import interface
-import numpy as np
 import tensorflow as tf
 
 from tensorboard.plugins.hparams import api as hparams_api
 
 
+Array = interface.Array
 Scalar = interface.Scalar
 
 
@@ -45,7 +45,7 @@ class SummaryWriter(interface.MetricWriter):
       for key, value in scalars.items():
         tf.summary.scalar(key, value, step=step)
 
-  def write_images(self, step: int, images: Mapping[str, np.ndarray]):
+  def write_images(self, step: int, images: Mapping[str, Array]):
     with self._summary_writer.as_default():
       for key, value in images.items():
         tf.summary.image(key, value, step=step, max_outputs=value.shape[0])
@@ -57,7 +57,7 @@ class SummaryWriter(interface.MetricWriter):
 
   def write_histograms(self,
                        step: int,
-                       arrays: Mapping[str, np.ndarray],
+                       arrays: Mapping[str, Array],
                        num_buckets: Optional[Mapping[str, int]] = None):
     with self._summary_writer.as_default():
       for key, value in arrays.items():

@@ -22,9 +22,11 @@ logging or writing to multiple formats.
 import abc
 from typing import Any, Mapping, Optional, Union
 
+import jax.numpy as jnp
 import numpy as np
 
-Scalar = Union[int, float]
+Array = Union[np.ndarray, jnp.ndarray]
+Scalar = Union[int, float, np.ndarray, jnp.ndarray]
 
 
 class MetricWriter(abc.ABC):
@@ -43,7 +45,7 @@ class MetricWriter(abc.ABC):
     """
 
   @abc.abstractmethod
-  def write_images(self, step: int, images: Mapping[str, np.ndarray]):
+  def write_images(self, step: int, images: Mapping[str, Array]):
     """Write images for the step.
 
     Consecutive calls to this method can provide different sets of images.
@@ -74,7 +76,7 @@ class MetricWriter(abc.ABC):
   @abc.abstractmethod
   def write_histograms(self,
                        step: int,
-                       arrays: Mapping[str, np.ndarray],
+                       arrays: Mapping[str, Array],
                        num_buckets: Optional[Mapping[str, int]] = None):
     """Writes histograms for the step.
 

@@ -22,10 +22,9 @@ from typing import Any, Mapping, Optional
 
 
 from clu.metric_writers import interface
-import numpy as np
 from torch.utils import tensorboard
 
-
+Array = interface.Array
 Scalar = interface.Scalar
 
 
@@ -41,7 +40,7 @@ class TorchTensorboardWriter(interface.MetricWriter):
     for key, value in scalars.items():
       self._writer.add_scalar(key, value, global_step=step)
 
-  def write_images(self, step: int, images: Mapping[str, np.ndarray]):
+  def write_images(self, step: int, images: Mapping[str, Array]):
     for key, value in images.items():
       self._writer.add_image(key, value, global_step=step, dataformats="HWC")
 
@@ -51,7 +50,7 @@ class TorchTensorboardWriter(interface.MetricWriter):
 
   def write_histograms(self,
                        step: int,
-                       arrays: Mapping[str, np.ndarray],
+                       arrays: Mapping[str, Array],
                        num_buckets: Optional[Mapping[str, int]] = None):
     for tag, values in arrays.items():
       bins = None if num_buckets is None else num_buckets.get(tag)

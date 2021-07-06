@@ -28,8 +28,8 @@ from typing import Any, Mapping, Optional, Sequence
 from clu.internal import asynclib
 from clu.metric_writers import interface
 from clu.metric_writers import multi_writer
-import numpy as np
 
+Array = interface.Array
 Scalar = interface.Scalar
 
 
@@ -60,11 +60,9 @@ class AsyncWriter(interface.MetricWriter):
 
 
   def write_scalars(self, step: int, scalars: Mapping[str, Scalar]):
-    scalars = {k: np.array(v).item() for k, v in scalars.items()}
     self._pool(self._writer.write_scalars)(step=step, scalars=scalars)
 
-  def write_images(self, step: int, images: Mapping[str, np.ndarray]):
-    images = {k: np.array(v) for k, v in images.items()}
+  def write_images(self, step: int, images: Mapping[str, Array]):
     self._pool(self._writer.write_images)(step=step, images=images)
 
   def write_texts(self, step: int, texts: Mapping[str, str]):
@@ -72,9 +70,8 @@ class AsyncWriter(interface.MetricWriter):
 
   def write_histograms(self,
                        step: int,
-                       arrays: Mapping[str, np.ndarray],
+                       arrays: Mapping[str, Array],
                        num_buckets: Optional[Mapping[str, int]] = None):
-    arrays = {k: np.array(v) for k, v in arrays.items()}
     self._pool(self._writer.write_histograms)(
         step=step, arrays=arrays, num_buckets=num_buckets)
 
