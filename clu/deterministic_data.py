@@ -85,10 +85,22 @@ class DatasetBuilder(typing_extensions.Protocol):
 
 
 class RemainderOptions(enum.Enum):
-  """The options for handling the last remaining batch of examples."""
-  DROP = 0  # drop all remaining examples
-  BALANCE_ON_PROCESSES = 1  # distribute on all processes as evenly as possible
-  ON_FIRST_PROCESS = 2  # put all remaining examples on the first process
+  """How to handle examples not divisible by number of processes.
+
+  Possible values:
+
+  - DROP: Examples not divisible by process count will be dropped. Every host
+    receives the same number of examples.
+  - BALANCE_ON_PROCESSES: Examples not divisible by process count will be
+    distributed evenly on processes, by increasing process number. For example,
+    if there are 4 processes and 7 examples, then processes 0, 1, 2 will have
+    2 examples, and process 3 will have 1 example.
+  - ON_FIRST_PROCESS: Examples not divisible by process count will be assigned
+    to process 0.
+  """
+  DROP = 0
+  BALANCE_ON_PROCESSES = 1
+  ON_FIRST_PROCESS = 2
 
 
 def _shard_read_instruction(
