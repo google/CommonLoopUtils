@@ -335,6 +335,34 @@ class Checkpoint:
       FileNotFoundError: If specified checkpoint does not exist, or if there
       is no checkpoint to restore in case no checkpoint was specified.
     """
+    checkpoint = self._check_or_get_latest_checkpoint(checkpoint)
+    return self.restore_or_initialize(state, checkpoint)
+
+  def restore_dict(self, checkpoint: Optional[str] = None) -> Dict[str, Any]:
+    """Restores from the checkpoint as state dict.
+
+    Args:
+      checkpoint: A flax checkpoint path to be restored. If not specified, the
+        latest checkpoint is restored.
+
+    Returns:
+      The restored state dict.
+      Note that all TensorFlow `Trackable`s in `tf_state` (see `__init__()`) are
+      also updated.
+
+    Raises:
+      FileNotFoundError: If specified checkpoint does not exist, or if there
+        is no checkpoint to restore in case no checkpoint was specified.
+    """
+    checkpoint = self._check_or_get_latest_checkpoint(checkpoint)
+    logging.info("Restoring checkpoint as state dict from %s", checkpoint)
+    self.tf_checkpoint.restore(checkpoint)
+    flax_path = self._flax_path(checkpoint)
+    with tf.io.gfile.GFile(flax_path, "rb") as f:
+      state = flax.serialization.msgpack_restore(f.read())
+    return state
+
+  def _check_or_get_latest_checkpoint(self, checkpoint: Optional[str]) -> str:
     if checkpoint:
       if not tf.io.gfile.exists(self._flax_path(checkpoint)):
         raise FileNotFoundError(f"Checkpoint {checkpoint} does not exist")
@@ -342,7 +370,7 @@ class Checkpoint:
       checkpoint = self.get_latest_checkpoint_to_restore_from()
       if not checkpoint:
         raise FileNotFoundError(f"No checkpoint found at {self.base_directory}")
-    return self.restore_or_initialize(state, checkpoint)
+    return checkpoint
 
 
 class MultihostCheckpoint(Checkpoint):

@@ -155,6 +155,12 @@ class CheckpointTest(tf.test.TestCase):
     self.assertAllEqual(features2["x"], features2_restored["x"])
     self.assertAllEqual(features2["y"], features2_restored["y"])
 
+    # Restore at features2 with restore_dict.
+    state = ckpt.restore_dict()
+    features2_restored = next(ds_iter)
+    self.assertAllEqual(features2["x"], features2_restored["x"])
+    self.assertAllEqual(features2["y"], features2_restored["y"])
+
   def test_restore_flax_alone(self):
     base_dir = tempfile.mkdtemp()
     ds_iter = iter(_make_dataset())
@@ -167,6 +173,30 @@ class CheckpointTest(tf.test.TestCase):
     # Restores step=1.
     state = ckpt.restore_or_initialize(state)
     self.assertEqual(state.step, 1)
+
+  def test_restore_dict(self):
+    base_dir = tempfile.mkdtemp()
+    ds_iter = iter(_make_dataset())
+    ckpt = checkpoint.Checkpoint(base_dir, dict(ds_iter=ds_iter))
+    with self.assertRaisesRegex(FileNotFoundError, r"No checkpoint found at"):
+      ckpt.restore_dict()
+    with self.assertRaisesRegex(FileNotFoundError,
+                                r"Checkpoint invalid does not exist"):
+      ckpt.restore_dict("invalid")
+
+    state = TrainState(step=1)
+    ckpt.save(state)
+
+    state_dict = ckpt.restore_dict()
+    self.assertEqual(state_dict, dict(step=1))
+    first_checkpoint = ckpt.latest_checkpoint
+
+    new_state = TrainState(step=2)
+    ckpt.save(new_state)
+
+    self.assertEqual(ckpt.restore_dict(first_checkpoint), dict(step=1))
+    self.assertEqual(ckpt.restore_dict(), dict(step=2))
+    self.assertEqual(ckpt.restore_dict(ckpt.latest_checkpoint), dict(step=2))
 
   def test_ignores_incomplete_checkpoint(self):
     base_dir = tempfile.mkdtemp()
