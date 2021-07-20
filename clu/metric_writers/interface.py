@@ -26,7 +26,7 @@ import jax.numpy as jnp
 import numpy as np
 
 Array = Union[np.ndarray, jnp.ndarray]
-Scalar = Union[int, float, np.ndarray, jnp.ndarray]
+Scalar = Union[int, float, np.number, np.ndarray, jnp.ndarray]
 
 
 class MetricWriter(abc.ABC):
