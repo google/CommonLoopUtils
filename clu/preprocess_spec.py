@@ -36,13 +36,13 @@ See preprocess_spec_test.py for some simple examples.
 """
 
 import ast
+import dataclasses
 import inspect
 import re
 import sys
 from typing import Dict, List, Sequence, Tuple, Type, Union
 
 from absl import logging
-import dataclasses
 from flax import traverse_util
 import jax.numpy as jnp
 import tensorflow as tf
@@ -180,6 +180,15 @@ class PreprocessFn:
     if self.only_jax_types:
       features = OnlyJaxTypes()(features)
     return features
+
+  def __add__(self, other: "PreprocessFn") -> "PreprocessFn":
+    """Concatenates two `PreprocessingFn`."""
+    if not isinstance(other, PreprocessFn):
+      raise ValueError("Can only add other instances of `PreprocessFn`.")
+    return PreprocessFn(
+        ops=tuple(self.ops) + tuple(other.ops),
+        only_jax_types=self.only_jax_types or other.only_jax_types,
+    )
 
 
 def _get_op_class(

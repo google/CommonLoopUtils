@@ -12,10 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import dataclasses
+
 from absl import logging
 from absl.testing import parameterized
 from clu import preprocess_spec
-import dataclasses
 import tensorflow as tf
 
 Features = preprocess_spec.Features
@@ -132,6 +133,16 @@ class PreprocessSpecTest(parameterized.TestCase, tf.test.TestCase):
     x = {"image": tf.constant(2), "label": tf.constant("bla")}
     y = preprocess_fn(x)
     self.assertEqual(y, x)
+
+  def test_add_preprocess_fn(self):
+    op1 = ToFloat()
+    op2 = ToFloat()
+    op3 = ToFloat()
+    fn1 = preprocess_spec.PreprocessFn(ops=(op1, op2), only_jax_types=False)
+    fn2 = preprocess_spec.PreprocessFn(ops=(op3,), only_jax_types=True)
+    fn12 = fn1 + fn2
+    self.assertEqual(fn12.ops, fn1.ops + fn2.ops)
+    self.assertTrue(fn12.only_jax_types)
 
 
 if __name__ == "__main__":

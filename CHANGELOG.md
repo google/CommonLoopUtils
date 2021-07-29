@@ -66,3 +66,11 @@ Current list of modules:
 Documentation:
 
 -   Added `clu_synopsis.ipynb` Colab
+
+## Next version
+
+-   Switched from Python 3.6 to Python 3.7
+
+`preprocess_spec`
+
+-   Makes `PreprocessFn` addable.
