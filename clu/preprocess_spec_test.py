@@ -144,6 +144,16 @@ class PreprocessSpecTest(parameterized.TestCase, tf.test.TestCase):
     self.assertEqual(fn12.ops, fn1.ops + fn2.ops)
     self.assertTrue(fn12.only_jax_types)
 
+  def test_slice_preprocess_fn(self):
+    op1 = ToFloat()
+    op2 = Rescale()
+    op3 = ToFloat()
+    fn = preprocess_spec.PreprocessFn(ops=(op1, op2, op3), only_jax_types=True)
+    self.assertEqual(fn[:-1].ops, (op1, op2))
+    self.assertTrue(fn[:-1].only_jax_types)
+    self.assertEqual(fn[1].ops, [op2])
+    self.assertTrue(fn[1].only_jax_types)
+
 
 if __name__ == "__main__":
   tf.test.main()
