@@ -58,21 +58,9 @@ SEED_KEY = "seed"
 _CAMEL_CASE_RGX = re.compile(r"(?<!^)(?=[A-Z])")
 
 
-def _describe_features(features: Features) -> str:
-  description = {}
-  for k, v in features.items():
-    if isinstance(v, (tf.Tensor, tf.RaggedTensor, tf.SparseTensor)):
-      description[k] = f"{v.dtype.name}{list(v.shape)}"
-    elif isinstance(v, dict):
-      description[k] = _describe_features(v)
-    else:
-      raise ValueError(f"Unsupported type {type(v)} at feature {k}.")
-  return str(description)
-
-
 @typing_extensions.runtime_checkable
-class PreprocessOp(typing_extensions.Protocol):
-  """Interface for all preprocess ops.
+class FeatureTransformFn(typing_extensions.Protocol):
+  """Interface for all preprocess functions that transform `Features`.
 
   You don't have to inherit from this protocol. Your class only needs to provide
   the same function signature for __call__().
@@ -88,7 +76,7 @@ class PreprocessOp(typing_extensions.Protocol):
     ...
 
 
-def get_all_ops(module_name: str) -> List[Tuple[str, Type[PreprocessOp]]]:
+def get_all_ops(module_name: str) -> List[Tuple[str, Type[FeatureTransformFn]]]:
   """Helper to return all preprocess ops in a module.
 
   Modules that define processing ops can simply define:
@@ -106,7 +94,8 @@ def get_all_ops(module_name: str) -> List[Tuple[str, Type[PreprocessOp]]]:
   """
   def is_op(x):
     return (inspect.isclass(x) and dataclasses.is_dataclass(x) and
-            issubclass(x, PreprocessOp))
+            issubclass(x, FeatureTransformFn))
+
   op_name = lambda n: _CAMEL_CASE_RGX.sub("_", n).lower()
   members = inspect.getmembers(sys.modules[module_name])
   return [(op_name(name), op) for name, op in members if is_op(op)]
@@ -161,9 +150,16 @@ class OnlyJaxTypes:
 
 @dataclasses.dataclass
 class PreprocessFn:
-  """Chain of preprocessing ops combined to a single preprocessing function."""
+  """Chain of preprocessing ops combined to a single preprocessing function.
 
-  ops: Sequence[PreprocessOp]
+  Attributes:
+    ops: List of feature transformations. Transformations will be applied in the
+      given order.
+    only_jax_types: If True will add the `OnlyJaxTypes` transformation at the
+      end.
+  """
+
+  ops: Sequence[FeatureTransformFn]
   only_jax_types: bool
 
   def __call__(self, features: Features) -> Features:
@@ -193,7 +189,8 @@ class PreprocessFn:
 
 def _get_op_class(
     expr: List[ast.stmt],
-    available_ops: Dict[str, Type[PreprocessOp]]) -> Type[PreprocessOp]:
+    available_ops: Dict[str,
+                        Type[FeatureTransformFn]]) -> Type[FeatureTransformFn]:
   """Gets the process op fn from the given expression."""
   if isinstance(expr, ast.Call):
     fn_name = expr.func.id
@@ -208,8 +205,9 @@ def _get_op_class(
       f"'{fn_name}' is not available (available ops: {list(available_ops)}).")
 
 
-def parse_single_preprocess_op(
-    spec: str, available_ops: Dict[str, Type[PreprocessOp]]) -> PreprocessOp:
+def _parse_single_preprocess_op(
+    spec: str,
+    available_ops: Dict[str, Type[FeatureTransformFn]]) -> FeatureTransformFn:
   """Parsing the spec for a single preprocess op.
 
   The op can just be the method name or the method name followed by any
@@ -253,15 +251,27 @@ def parse_single_preprocess_op(
 
 
 def parse(spec: str,
-          available_ops: List[Tuple[str, Type[PreprocessOp]]],
+          available_ops: List[Tuple[str, Type[FeatureTransformFn]]],
           *,
-          only_jax_types: bool = True) -> PreprocessFn:
+          only_jax_types: bool = True) -> FeatureTransformFn:
   """Parses a preprocess spec; a '|' separated list of preprocess ops."""
   available_ops = dict(available_ops)
   if not spec.strip():
     ops = []
   else:
     ops = [
-        parse_single_preprocess_op(s, available_ops) for s in spec.split("|")
+        _parse_single_preprocess_op(s, available_ops) for s in spec.split("|")
     ]
   return PreprocessFn(ops, only_jax_types=only_jax_types)
+
+
+def _describe_features(features: Features) -> str:
+  description = {}
+  for k, v in features.items():
+    if isinstance(v, (tf.Tensor, tf.RaggedTensor, tf.SparseTensor)):
+      description[k] = f"{v.dtype.name}{list(v.shape)}"
+    elif isinstance(v, dict):
+      description[k] = _describe_features(v)
+    else:
+      raise ValueError(f"Unsupported type {type(v)} at feature {k}.")
+  return str(description)

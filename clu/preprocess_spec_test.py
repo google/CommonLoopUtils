@@ -47,19 +47,19 @@ class PreprocessSpecTest(parameterized.TestCase, tf.test.TestCase):
   """Tests for parsing preprocessing op spec."""
 
   def test_no_arguments(self):
-    op = preprocess_spec.parse_single_preprocess_op("rescale", dict(all_ops()))
+    op = preprocess_spec._parse_single_preprocess_op("rescale", dict(all_ops()))
     logging.info("op: %r", op)
     self.assertEqual(str(op), "Rescale(scale=1)")
 
   def test_positional_argument(self):
-    op = preprocess_spec.parse_single_preprocess_op("rescale(2)",
-                                                    dict(all_ops()))
+    op = preprocess_spec._parse_single_preprocess_op("rescale(2)",
+                                                     dict(all_ops()))
     logging.info("op: %r", op)
     self.assertEqual(str(op), "Rescale(scale=2)")
 
   def test_keyword_argument(self):
-    op = preprocess_spec.parse_single_preprocess_op("rescale(scale=3)",
-                                                    dict(all_ops()))
+    op = preprocess_spec._parse_single_preprocess_op("rescale(scale=3)",
+                                                     dict(all_ops()))
     logging.info("op: %r", op)
     self.assertEqual(str(op), "Rescale(scale=3)")
 
@@ -68,21 +68,21 @@ class PreprocessSpecTest(parameterized.TestCase, tf.test.TestCase):
         ValueError,
         r"'does_not_exist' is not available \(available ops: \['rescale', "
         r"'to_float'\]\)."):
-      preprocess_spec.parse_single_preprocess_op("does_not_exist",
-                                                 dict(all_ops()))
+      preprocess_spec._parse_single_preprocess_op("does_not_exist",
+                                                  dict(all_ops()))
 
   def test_invalid_spec(self):
     with self.assertRaisesRegex(
         ValueError, r"'rescale\)' is not a valid preprocess op spec."):
-      preprocess_spec.parse_single_preprocess_op("rescale)", dict(all_ops()))
+      preprocess_spec._parse_single_preprocess_op("rescale)", dict(all_ops()))
 
   def test_pos_and_kw_arg(self):
     with self.assertRaisesRegex(
         ValueError,
         r"Rescale'> given both as positional argument \(value: 2\) and keyword "
         r"argument \(value: 3\)."):
-      preprocess_spec.parse_single_preprocess_op("rescale(2, scale=3)",
-                                                 dict(all_ops()))
+      preprocess_spec._parse_single_preprocess_op("rescale(2, scale=3)",
+                                                  dict(all_ops()))
 
   def test_parsing_empty_string(self):
     preprocess_fn = preprocess_spec.parse("", all_ops())
