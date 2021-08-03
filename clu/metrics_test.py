@@ -160,6 +160,27 @@ class MetricsTest(tf.test.TestCase, parameterized.TestCase):
         self.results_masked["train_accuracy"])
 
   @parameterized.named_parameters(
+      ("0d_values_no_mask", 1, None, 1.),
+      ("1d_values_no_mask", [1, 2, 3], None, 2.),
+      ("1d_values_1d_mask", [1, 2, 3], [True, True, False], 1.5),
+      ("2d_values_no_mask", [[1, 2], [2, 3], [3, 4]], None, 2.5),
+      ("2d_values_1d_mask", [[1, 2], [2, 3], [3, 4]], [False, True, True], 3.),
+      ("2d_values_2d_mask", [[1, 2], [2, 3], [3, 4]],
+       [[False, True], [True, True], [True, True]], 2.8),
+      ("3d_values_no_mask", [[[1, 2], [2, 3]], [[2, 1], [3, 4]],
+                             [[3, 1], [4, 1]]], None, 2.25),
+      ("3d_values_1d_mask", [[[1, 2], [2, 3]], [[2, 1], [3, 4]],
+                             [[3, 1], [4, 1]]], [False, True, True], 2.375),
+  )
+  def test_average_masked(self, values, mask, expected_result):
+    values = jnp.asarray(values)
+    if mask is not None:
+      mask = jnp.asarray(mask)
+    self.assertAllClose(
+        metrics.Average.from_model_output(values, mask=mask).compute(),
+        expected_result)
+
+  @parameterized.named_parameters(
       ("Average", metrics.Average),
       ("Std", metrics.Std),
       ("LastValue", metrics.LastValue),

@@ -443,7 +443,16 @@ class LastValue(Metric):
 
 @flax.struct.dataclass
 class Average(Metric):
-  """Computes the average of a scalar or a batch of scalars.
+  """Computes the average of a scalar or a batch of tensors.
+
+  Supports the following types of masks:
+
+  - A one-dimensional mask with the same leading dimension as the scalars, or,
+  - A multi-dimensional mask with the exact same dimensions as the scalars.
+    This allows the use of per-example masks for examples in a batch, as well as
+    per-target masks for targets for examples in a batch.
+
+  The result is always a scalar.
 
   See also documentation of `Metric`.
   """
@@ -458,12 +467,24 @@ class Average(Metric):
                         **_) -> Metric:
     if values.ndim == 0:
       values = values[None]
-    utils.check_param(values, ndim=1)
     if mask is None:
-      mask = jnp.ones(values.shape[0])
+      mask = jnp.ones_like(values)
+    # Broadcast mask to the same number of dimensions as values.
+    if mask.ndim < values.ndim:
+      mask = jnp.expand_dims(
+          mask, axis=tuple(jnp.arange(mask.ndim, values.ndim)))
+    # Leading dimensions of mask and values must match.
+    if mask.shape[0] != values.shape[0]:
+      raise ValueError(
+          f"Argument `mask` must have the same leading dimension as `values`. "
+          f"Received mask of dimension {mask.shape} "
+          f"and values of dimension {values.shape}.")
+    mask = mask.astype(bool)
+    utils.check_param(mask, dtype=bool, ndim=values.ndim)
     return cls(
         total=jnp.where(mask, values, jnp.zeros_like(values)).sum(),
-        count=mask.sum(),
+        count=jnp.where(mask, jnp.ones_like(values),
+                        jnp.zeros_like(values)).sum(),
     )
 
   def merge(self, other: "Average") -> "Average":
