@@ -35,7 +35,11 @@ class MyDatasetBuilder:
   def as_dataset(self, split: tfds.core.ReadInstruction, shuffle_files: bool,
                  read_config: tfds.ReadConfig, decoders) -> tf.data.Dataset:
     del shuffle_files, read_config, decoders
-    instructions = split.to_absolute(self.name2len)
+    split_infos = {
+        k: tfds.core.SplitInfo(name=k, shard_lengths=[v], num_bytes=0)
+        for k, v in self.name2len.items()
+    }
+    instructions = split.to_absolute(split_infos)
     assert len(instructions) == 1
     from_ = instructions[0].from_ or 0
     to = instructions[0].to or self.name2len[instructions[0].splitname]
@@ -84,9 +88,14 @@ class DeterministicDataTest(tf.test.TestCase, parameterized.TestCase):
         host_id=host_id,
         host_count=host_count,
         drop_remainder=drop_remainder)
-    name2len = {"test": 9}
+    split_infos = {
+        "test": tfds.core.SplitInfo(
+            name="test",
+            shard_lengths=[9],
+            num_bytes=0,
+        )}
     self.assertEqual(
-        expected.to_absolute(name2len), actual.to_absolute(name2len))
+        expected.to_absolute(split_infos), actual.to_absolute(split_infos))
 
   @parameterized.parameters(
       # host_id, host_count, drop_remainder, spec, exected_spec_for_host

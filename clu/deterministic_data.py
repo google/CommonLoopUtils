@@ -104,12 +104,17 @@ class RemainderOptions(enum.Enum):
 
 
 def _shard_read_instruction(
-    absolute_instruction, *, name2len: Dict[str,
-                                            int], host_id: int, host_count: int,
-    remainder_options: RemainderOptions) -> tfds.core.ReadInstruction:
+    absolute_instruction,
+    *,
+    split_infos: Dict[str, tfds.core.SplitInfo],
+    host_id: int,
+    host_count: int,
+    remainder_options: RemainderOptions,
+) -> tfds.core.ReadInstruction:
   """Shards a single ReadInstruction. See get_read_instruction_for_host()."""
   start = absolute_instruction.from_ or 0
-  end = absolute_instruction.to or name2len[absolute_instruction.splitname]
+  end = absolute_instruction.to or (
+      split_infos[absolute_instruction.splitname].num_examples)
   assert end >= start, f"start={start}, end={end}"
   num_examples = end - start
 
@@ -204,16 +209,22 @@ def get_read_instruction_for_host(
         f"({host_count}).")
 
   if dataset_info is None:
-    name2len = {split: num_examples}
+    split_infos = {
+        split: tfds.core.SplitInfo(
+            name=split,
+            shard_lengths=[num_examples],
+            num_bytes=0,
+        ),
+    }
   else:
-    name2len = {k: v.num_examples for k, v in dataset_info.splits.items()}
+    split_infos = dataset_info.splits
   read_instruction = tfds.core.ReadInstruction.from_spec(split)
   sharded_read_instructions = []
-  for ri in read_instruction.to_absolute(name2len):
+  for ri in read_instruction.to_absolute(split_infos):
     sharded_read_instructions.append(
         _shard_read_instruction(
             ri,
-            name2len=name2len,
+            split_infos=split_infos,
             host_id=host_id,
             host_count=host_count,
             remainder_options=remainder_options))
@@ -251,7 +262,9 @@ def _preprocess_with_per_example_rng(ds: tf.data.Dataset,
   return ds.enumerate().map(_fn, num_parallel_calls=AUTOTUNE)
 
 
-def pad_dataset(dataset: tf.data.Dataset, *, batch_dims: Sequence[int],
+def pad_dataset(dataset: tf.data.Dataset,
+                *,
+                batch_dims: Sequence[int],
                 pad_up_to_batches: Optional[int] = None,
                 cardinality: Optional[int] = None):
   """Adds padding to a dataset.
@@ -267,11 +280,11 @@ def pad_dataset(dataset: tf.data.Dataset, *, batch_dims: Sequence[int],
       `True` for every example that comes from `dataset_builder`, and to `False`
       for every example that is padded to get to the specified number of
       batches. Note that the specified `dataset_builder` and `split` must result
-      in at least `pad_up_to_batches` (possibly partial) batches.
-      If `None`, derives from `batch_dims` and `cardinality` such that
-      `pad_up_to_batches * batch_dims == cardinality`.
-      Note that `cardinality` is what you pass in, not necessarily the original
-      full dataset size if you decide to shard it per host.
+      in at least `pad_up_to_batches` (possibly partial) batches. If `None`,
+      derives from `batch_dims` and `cardinality` such that `pad_up_to_batches *
+      batch_dims == cardinality`. Note that `cardinality` is what you pass in,
+      not necessarily the original full dataset size if you decide to shard it
+      per host.
     cardinality: Number of examples in the dataset. Only needed when the
       cardinality cannot be retrieved via `ds.cardinalty()` (e.g. because of
       using `ds.filter()`).
@@ -289,7 +302,7 @@ def pad_dataset(dataset: tf.data.Dataset, *, batch_dims: Sequence[int],
           "Cannot determine dataset cardinality. This can happen when you use "
           "a `.filter()` on the dataset. Please provide the cardinality as an "
           "argument to `create_dataset()`.")
-  if "mask" in  dataset.element_spec:
+  if "mask" in dataset.element_spec:
     raise ValueError("Dataset already contains a feature named \"mask\".")
   if pad_up_to_batches is None:
     pad_up_to_batches = int(np.ceil(cardinality / np.prod(batch_dims)))
@@ -299,8 +312,8 @@ def pad_dataset(dataset: tf.data.Dataset, *, batch_dims: Sequence[int],
   filler_element["mask"] = [False]
   filler_dataset = tf.data.Dataset.from_tensor_slices(filler_element)
 
-  dataset = dataset.map(lambda features: dict(mask=True, **features),
-                        num_parallel_calls=AUTOTUNE)
+  dataset = dataset.map(
+      lambda features: dict(mask=True, **features), num_parallel_calls=AUTOTUNE)
   padding = pad_up_to_batches * np.prod(batch_dims) - int(cardinality)
   assert padding >= 0, (
       f"Invalid padding={padding} (batch_dims={batch_dims}, cardinality="
@@ -354,16 +367,15 @@ def create_dataset(dataset_builder: DatasetBuilder,
     prefetch_size: The number of elements in the final dataset to prefetch in
       the background. This should be a small (say <10) positive integer or
       tf.data.experimental.AUTOTUNE.
-    pad_up_to_batches: Set this option to process the entire dataset.
-      - If set with an integer, the dataset is first padded to the specified
-      number of batches. A new feature called "mask" is added to every batch.
-      This feature is set to `True` for every example that comes from
-      `dataset_builder`, and to `False` for every example that is padded.
-      Note that the specified `dataset_builder` and `split` must result in at
-      least `pad_up_to_batches` (possibly partial) batches.
-      - If set with "auto", derives from `batch_dims` and `cardinality` such
-      that `pad_up_to_batches * batch_dims == cardinality`.
-      - If `None`, the dataset won't be padded.
+    pad_up_to_batches: Set this option to process the entire dataset. - If set
+      with an integer, the dataset is first padded to the specified number of
+      batches. A new feature called "mask" is added to every batch. This feature
+      is set to `True` for every example that comes from `dataset_builder`, and
+      to `False` for every example that is padded. Note that the specified
+      `dataset_builder` and `split` must result in at least `pad_up_to_batches`
+      (possibly partial) batches. - If set with "auto", derives from
+      `batch_dims` and `cardinality` such that `pad_up_to_batches * batch_dims
+      == cardinality`. - If `None`, the dataset won't be padded.
     cardinality: Number of examples in the dataset. Only needed when
       `pad_up_to_batches` is specified and the cardinality cannot be retrieved
       via `ds.cardinalty()` (e.g. because of `ds.filter()`).
