@@ -186,6 +186,14 @@ class PreprocessFn:
         only_jax_types=self.only_jax_types or other.only_jax_types,
     )
 
+  def __getitem__(self, op_index: Union[int, slice]) -> "PreprocessFn":
+    """Returns a `PreprocessFn` of the sliced ops."""
+    return PreprocessFn(
+        ops=self.ops[op_index]
+        if isinstance(op_index, slice) else [self.ops[op_index]],
+        only_jax_types=self.only_jax_types,
+    )
+
 
 def _get_op_class(
     expr: List[ast.stmt],
