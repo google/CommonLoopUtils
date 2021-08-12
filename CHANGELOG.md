@@ -74,3 +74,14 @@ Documentation:
 `preprocess_spec`
 
 -   Makes `PreprocessFn` addable.
+
+## v0.0.5
+
+-   Log error instead of failing when `profiler.start()` raises an exception.
+-   Makes `periodic_actions.ProgressUpdate` show total number of steps.
+-   Makes `AsyncWriter` non-blocking wrt JAX async computations.
+-   Adds `clu_synopsis.ipynb` Colab as initial documentation.
+-   Restore Checkpoint without providing the state
+-   Makes `PreprocessFn` addable.
+-   Allow n-dimensional arrays (and masks) to be passed to Metrics.Average().
+-   Support slicing `PreprocessFn`.
