@@ -59,7 +59,7 @@ _CAMEL_CASE_RGX = re.compile(r"(?<!^)(?=[A-Z])")
 
 
 @typing_extensions.runtime_checkable
-class FeatureTransformFn(typing_extensions.Protocol):
+class PreprocessOp(typing_extensions.Protocol):
   """Interface for all preprocess functions that transform `Features`.
 
   You don't have to inherit from this protocol. Your class only needs to provide
@@ -76,7 +76,7 @@ class FeatureTransformFn(typing_extensions.Protocol):
     ...
 
 
-def get_all_ops(module_name: str) -> List[Tuple[str, Type[FeatureTransformFn]]]:
+def get_all_ops(module_name: str) -> List[Tuple[str, Type[PreprocessOp]]]:
   """Helper to return all preprocess ops in a module.
 
   Modules that define processing ops can simply define:
@@ -94,7 +94,7 @@ def get_all_ops(module_name: str) -> List[Tuple[str, Type[FeatureTransformFn]]]:
   """
   def is_op(x):
     return (inspect.isclass(x) and dataclasses.is_dataclass(x) and
-            issubclass(x, FeatureTransformFn))
+            issubclass(x, PreprocessOp))
 
   op_name = lambda n: _CAMEL_CASE_RGX.sub("_", n).lower()
   members = inspect.getmembers(sys.modules[module_name])
@@ -159,7 +159,7 @@ class PreprocessFn:
       end.
   """
 
-  ops: Sequence[FeatureTransformFn]
+  ops: Sequence[PreprocessOp]
   only_jax_types: bool
 
   def __call__(self, features: Features) -> Features:
@@ -198,7 +198,7 @@ class PreprocessFn:
 def _get_op_class(
     expr: List[ast.stmt],
     available_ops: Dict[str,
-                        Type[FeatureTransformFn]]) -> Type[FeatureTransformFn]:
+                        Type[PreprocessOp]]) -> Type[PreprocessOp]:
   """Gets the process op fn from the given expression."""
   if isinstance(expr, ast.Call):
     fn_name = expr.func.id
@@ -215,7 +215,7 @@ def _get_op_class(
 
 def _parse_single_preprocess_op(
     spec: str,
-    available_ops: Dict[str, Type[FeatureTransformFn]]) -> FeatureTransformFn:
+    available_ops: Dict[str, Type[PreprocessOp]]) -> PreprocessOp:
   """Parsing the spec for a single preprocess op.
 
   The op can just be the method name or the method name followed by any
@@ -259,9 +259,9 @@ def _parse_single_preprocess_op(
 
 
 def parse(spec: str,
-          available_ops: List[Tuple[str, Type[FeatureTransformFn]]],
+          available_ops: List[Tuple[str, Type[PreprocessOp]]],
           *,
-          only_jax_types: bool = True) -> FeatureTransformFn:
+          only_jax_types: bool = True) -> PreprocessOp:
   """Parses a preprocess spec; a '|' separated list of preprocess ops."""
   available_ops = dict(available_ops)
   if not spec.strip():
