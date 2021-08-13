@@ -74,7 +74,7 @@ Features = Dict[str, Tensor]
 
 AUTOTUNE = tf.data.experimental.AUTOTUNE
 
-_use_split_info = version.parse("4.4.0") < version.parse(
+_use_split_info = version.parse("4.4.0") <= version.parse(
     tfds.version.__version__)
 
 
