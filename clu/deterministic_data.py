@@ -62,6 +62,7 @@ from absl import logging
 import jax
 import jax.numpy as jnp
 import numpy as np
+from packaging import version
 import tensorflow as tf
 import tensorflow_datasets as tfds
 import typing_extensions
@@ -72,6 +73,9 @@ Tensor = Union[tf.Tensor, tf.SparseTensor, tf.RaggedTensor]
 Features = Dict[str, Tensor]
 
 AUTOTUNE = tf.data.experimental.AUTOTUNE
+
+_use_split_info = version.parse("4.4.0") < version.parse(
+    tfds.version.__version__)
 
 
 class DatasetBuilder(typing_extensions.Protocol):
@@ -106,15 +110,18 @@ class RemainderOptions(enum.Enum):
 def _shard_read_instruction(
     absolute_instruction,
     *,
-    split_infos: Dict[str, tfds.core.SplitInfo],
+    split_infos: Dict[str, Union[int, tfds.core.SplitInfo]],
     host_id: int,
     host_count: int,
     remainder_options: RemainderOptions,
 ) -> tfds.core.ReadInstruction:
   """Shards a single ReadInstruction. See get_read_instruction_for_host()."""
   start = absolute_instruction.from_ or 0
-  end = absolute_instruction.to or (
-      split_infos[absolute_instruction.splitname].num_examples)
+  if _use_split_info:
+    end = absolute_instruction.to or (
+        split_infos[absolute_instruction.splitname].num_examples)  # pytype: disable=attribute-error
+  else:
+    end = absolute_instruction.to or split_infos[absolute_instruction.splitname]
   assert end >= start, f"start={start}, end={end}"
   num_examples = end - start
 
@@ -208,16 +215,23 @@ def get_read_instruction_for_host(
         f"Invalid combination of host_id ({host_id}) and host_count "
         f"({host_count}).")
 
-  if dataset_info is None:
-    split_infos = {
-        split: tfds.core.SplitInfo(
-            name=split,
-            shard_lengths=[num_examples],
-            num_bytes=0,
-        ),
-    }
+  if _use_split_info:
+    if dataset_info is None:
+      split_infos = {
+          split: tfds.core.SplitInfo(
+              name=split,
+              shard_lengths=[num_examples],
+              num_bytes=0,
+          ),
+      }
+    else:
+      split_infos = dataset_info.splits
   else:
-    split_infos = dataset_info.splits
+    if dataset_info is None:
+      split_infos = {split: num_examples}
+    else:
+      split_infos = {k: v.num_examples for k, v in dataset_info.splits.items()}
+
   read_instruction = tfds.core.ReadInstruction.from_spec(split)
   sharded_read_instructions = []
   for ri in read_instruction.to_absolute(split_infos):

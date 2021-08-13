@@ -85,3 +85,7 @@ Documentation:
 -   Makes `PreprocessFn` addable.
 -   Allow n-dimensional arrays (and masks) to be passed to Metrics.Average().
 -   Support slicing `PreprocessFn`.
+
+## v0.0.6
+
+-   Makes `deterministic_data` work with `tfds>4.4.0` and `tfds<=4.4.0`.

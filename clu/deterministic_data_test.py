@@ -13,6 +13,7 @@
 # limitations under the License.
 
 """Unit tests for the deterministic_data module."""
+import dataclasses
 import itertools
 import math
 
@@ -21,10 +22,13 @@ from unittest import mock
 
 from absl.testing import parameterized
 from clu import deterministic_data
-import dataclasses
 import jax
+from packaging import version
 import tensorflow as tf
 import tensorflow_datasets as tfds
+
+_use_split_info = version.parse("4.4.0") < version.parse(
+    tfds.version.__version__)
 
 
 @dataclasses.dataclass
@@ -35,11 +39,14 @@ class MyDatasetBuilder:
   def as_dataset(self, split: tfds.core.ReadInstruction, shuffle_files: bool,
                  read_config: tfds.ReadConfig, decoders) -> tf.data.Dataset:
     del shuffle_files, read_config, decoders
-    split_infos = {
-        k: tfds.core.SplitInfo(name=k, shard_lengths=[v], num_bytes=0)
-        for k, v in self.name2len.items()
-    }
-    instructions = split.to_absolute(split_infos)
+    if _use_split_info:
+      split_infos = {
+          k: tfds.core.SplitInfo(name=k, shard_lengths=[v], num_bytes=0)
+          for k, v in self.name2len.items()
+      }
+      instructions = split.to_absolute(split_infos)
+    else:
+      instructions = split.to_absolute(self.name2len)
     assert len(instructions) == 1
     from_ = instructions[0].from_ or 0
     to = instructions[0].to or self.name2len[instructions[0].splitname]
@@ -88,12 +95,15 @@ class DeterministicDataTest(tf.test.TestCase, parameterized.TestCase):
         host_id=host_id,
         host_count=host_count,
         drop_remainder=drop_remainder)
-    split_infos = {
-        "test": tfds.core.SplitInfo(
-            name="test",
-            shard_lengths=[9],
-            num_bytes=0,
-        )}
+    if _use_split_info:
+      split_infos = {
+          "test": tfds.core.SplitInfo(
+              name="test",
+              shard_lengths=[9],
+              num_bytes=0,
+          )}
+    else:
+      split_infos = {"test": 9}
     self.assertEqual(
         expected.to_absolute(split_infos), actual.to_absolute(split_infos))
 
