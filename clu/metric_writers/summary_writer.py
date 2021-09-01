@@ -48,6 +48,8 @@ class SummaryWriter(interface.MetricWriter):
   def write_images(self, step: int, images: Mapping[str, Array]):
     with self._summary_writer.as_default():
       for key, value in images.items():
+        if len(value.shape) == 3:
+          value = value[None]
         tf.summary.image(key, value, step=step, max_outputs=value.shape[0])
 
   def write_texts(self, step: int, texts: Mapping[str, str]):
