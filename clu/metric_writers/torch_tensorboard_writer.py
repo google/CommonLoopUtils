@@ -44,6 +44,12 @@ class TorchTensorboardWriter(interface.MetricWriter):
     for key, value in images.items():
       self._writer.add_image(key, value, global_step=step, dataformats="HWC")
 
+  def write_audios(
+      self, step: int, audios: Mapping[str, Array], *, sample_rate: int):
+    for key, value in audios.items():
+      self._writer.add_audio(
+          key, value, global_step=step, sample_rate=sample_rate)
+
   def write_texts(self, step: int, texts: Mapping[str, str]):
     for key, value in texts.items():
       self._writer.text(key, value, global_step=step)
