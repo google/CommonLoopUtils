@@ -52,13 +52,6 @@ class SummaryWriter(interface.MetricWriter):
           value = value[None]
         tf.summary.image(key, value, step=step, max_outputs=value.shape[0])
 
-  def write_audios(
-      self, step: int, audios: Mapping[str, Array], *, sample_rate: int):
-    with self._summary_writer.as_default():
-      for key, value in audios.items():
-        tf.summary.audio(key, value, sample_rate=sample_rate, step=step,
-                         max_outputs=value.shape[0])
-
   def write_texts(self, step: int, texts: Mapping[str, str]):
     with self._summary_writer.as_default():
       for key, value in texts.items():

@@ -65,11 +65,6 @@ class AsyncWriter(interface.MetricWriter):
   def write_images(self, step: int, images: Mapping[str, Array]):
     self._pool(self._writer.write_images)(step=step, images=images)
 
-  def write_audios(
-      self, step: int, audios: Mapping[str, Array], *, sample_rate: int):
-    self._pool(self._writer.write_audios)(
-        step=step, audios=audios, sample_rate=sample_rate)
-
   def write_texts(self, step: int, texts: Mapping[str, str]):
     self._pool(self._writer.write_texts)(step=step, texts=texts)
 
