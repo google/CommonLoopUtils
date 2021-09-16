@@ -22,6 +22,7 @@ from typing import Any, List, Mapping, Tuple, Union
 from absl import logging
 
 import jax.numpy as jnp
+import numpy as np
 import wrapt
 
 
@@ -65,8 +66,8 @@ def check_param(value, *, ndim=None, dtype=jnp.float32):
     A `ValueError` if `value` does not match `ndim` or `dtype`, or if `value`
     is not an instance of `jnp.ndarray`.
   """
-  if not isinstance(value, jnp.ndarray):
-    raise ValueError(f"Expected jnp.array, got type={type(value)}")
+  if not isinstance(value, (np.ndarray, jnp.ndarray)):
+    raise ValueError(f"Expected np.array or jnp.array, got type={type(value)}")
   if ndim is not None and value.ndim != ndim:
     raise ValueError(f"Expected ndim={ndim}, got ndim={value.ndim}")
   if dtype is not None and value.dtype != dtype:

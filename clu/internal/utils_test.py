@@ -79,7 +79,7 @@ class HelpersTest(absltest.TestCase):
 
   def test_check_param(self):
     a = jnp.array(0.)
-    with self.assertRaisesRegex(ValueError, r"^Expected jnp.array"):
+    with self.assertRaisesRegex(ValueError, r"^Expected np.array or jnp.array"):
       utils.check_param(None, ndim=1)
     with self.assertRaisesRegex(ValueError, r"^Expected ndim"):
       utils.check_param(a, ndim=1)
