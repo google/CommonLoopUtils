@@ -261,7 +261,7 @@ def _parse_single_preprocess_op(
 def parse(spec: str,
           available_ops: List[Tuple[str, Type[PreprocessOp]]],
           *,
-          only_jax_types: bool = True) -> PreprocessOp:
+          only_jax_types: bool = True) -> PreprocessFn:
   """Parses a preprocess spec; a '|' separated list of preprocess ops."""
   available_ops = dict(available_ops)
   if not spec.strip():
