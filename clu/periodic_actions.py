@@ -31,6 +31,8 @@ from clu.internal import asynclib
 import jax
 import jax.numpy as jnp
 
+# TODO(b/200953513): Migrate away from logging imports (on module level)
+#                    to logging the actual usage. See b/200953513.
 
 
 MetricWriter = metric_writers.MetricWriter

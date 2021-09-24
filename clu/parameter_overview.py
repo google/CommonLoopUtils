@@ -24,6 +24,8 @@ import numpy as np
 import tensorflow as tf
 
 
+# TODO(b/200953513): Migrate away from logging imports (on module level)
+#                    to logging the actual usage. See b/200953513.
 
 
 ModuleOrVariables = Union[tf.Module, List[tf.Variable]]

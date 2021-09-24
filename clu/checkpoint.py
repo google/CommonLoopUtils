@@ -64,6 +64,8 @@ import flax
 import jax
 import tensorflow as tf
 
+# TODO(b/200953513): Migrate away from logging imports (on module level)
+#                    to logging the actual usage. See b/200953513.
 
 
 

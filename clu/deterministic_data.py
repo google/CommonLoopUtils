@@ -67,6 +67,8 @@ import tensorflow as tf
 import tensorflow_datasets as tfds
 import typing_extensions
 
+# TODO(b/200953513): Migrate away from logging imports (on module level)
+#                    to logging the actual usage. See b/200953513.
 
 
 Tensor = Union[tf.Tensor, tf.SparseTensor, tf.RaggedTensor]

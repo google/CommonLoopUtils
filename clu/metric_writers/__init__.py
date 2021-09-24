@@ -55,6 +55,8 @@ from clu.metric_writers.multi_writer import MultiWriter
 from clu.metric_writers.summary_writer import SummaryWriter
 
 
+# TODO(b/200953513): Migrate away from logging imports (on module level)
+#                    to logging the actual usage. See b/200953513.
 
 
 FLAGS = flags.FLAGS

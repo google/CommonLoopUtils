@@ -25,6 +25,8 @@ from clu.platform.interface import ArtifactType
 from clu.platform.interface import WorkUnit
 from clu.platform.local import LocalWorkUnit
 
+# TODO(b/200953513): Migrate away from logging imports (on module level)
+#                    to logging the actual usage. See b/200953513.
 
 _work_unit = None
 _work_unit_lock = threading.Lock()
