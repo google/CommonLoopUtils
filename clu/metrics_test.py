@@ -58,6 +58,7 @@ class MetricsTest(tf.test.TestCase, parameterized.TestCase):
             example_loss=jnp.array([0, 4.2]),
             learning_rate=0.02,
             loss=jnp.array(4.2),
+            mask=None,
         ),
         dict(
             logits=jnp.array([[1., 2.], [3., 4.]]),
@@ -65,14 +66,16 @@ class MetricsTest(tf.test.TestCase, parameterized.TestCase):
             example_loss=jnp.array([1.7, 0]),
             learning_rate=0.01,
             loss=jnp.array(1.7),
+            mask=None,
         ),
     )
     masks = (
         jnp.array([False, True]),
         jnp.array([True, False]),
     )
+    maskless = lambda d: {k: v for k, v in d.items() if k != "mask"}
     self.model_outputs_masked = tuple(
-        dict(mask=mask, **model_output)
+        dict(mask=mask, **maskless(model_output))
         for mask, model_output in zip(masks, self.model_outputs))
     def concat_outputs(name):
       return jnp.concatenate(
@@ -136,8 +139,8 @@ class MetricsTest(tf.test.TestCase, parameterized.TestCase):
     return compute_metric
 
   def test_metric_reduce(self):
-    metric1 = metrics.LastValue.from_model_output(jnp.array([1, 2]))
-    metric2 = metrics.LastValue.from_model_output(jnp.array([3, 4]))
+    metric1 = metrics.LastValue.from_model_output(jnp.array([1, 2]), mask=None)
+    metric2 = metrics.LastValue.from_model_output(jnp.array([3, 4]), mask=None)
     metric12 = jax.tree_multimap(lambda *args: jnp.stack(args), metric1,
                                  metric2)
     self.assertAllEqual(metric12.reduce().compute(), metric2.compute())
@@ -186,7 +189,7 @@ class MetricsTest(tf.test.TestCase, parameterized.TestCase):
       ("LastValue", metrics.LastValue),
   )
   def test_merge_asserts_shape(self, metric_cls):
-    metric1 = metric_cls.from_model_output(jnp.arange(3.))
+    metric1 = metric_cls.from_model_output(jnp.arange(3.), mask=None)
     metric2 = jax.tree_multimap(lambda *args: jnp.stack(args), metric1, metric1)
     with self.assertRaisesRegex(ValueError, r"^Expected same shape"):
       metric1.merge(metric2)
@@ -201,7 +204,7 @@ class MetricsTest(tf.test.TestCase, parameterized.TestCase):
         self.results["train_accuracy"])
 
   def test_last_value_asserts_shape(self):
-    metric1 = metrics.LastValue.from_model_output(jnp.arange(3.))
+    metric1 = metrics.LastValue.from_model_output(jnp.arange(3.), mask=None)
     metric2 = jax.tree_multimap(lambda *args: jnp.stack(args), metric1, metric1)
     with self.assertRaisesRegex(ValueError, r"^Expected same shape"):
       metric1.merge(metric2)
@@ -244,6 +247,7 @@ class MetricsTest(tf.test.TestCase, parameterized.TestCase):
         collection.single_from_model_output(
             logits=jnp.array([[-1., 1.], [1., -1.]]),
             labels=jnp.array([0, 0]),  # i.e. 1st incorrect, 2nd correct
+            mask=None,
         ).compute(),
         {"accuracy": 0.5})
 

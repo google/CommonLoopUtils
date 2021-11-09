@@ -60,7 +60,6 @@ Synopsis:
 
 from typing import Any, Callable, Dict, Optional, Sequence, Tuple
 
-from absl import logging
 
 from clu.internal import utils
 import flax
@@ -81,7 +80,7 @@ def _assert_same_shape(a: jnp.array, b: jnp.array):
 class Metric:
   """Interface for computing metrics from intermediate values.
 
-  Refer to `Collection` for computing multipel metrics at the same time.
+  Refer to `Collection` for computing multiple metrics at the same time.
 
   Synopsis:
 
@@ -173,15 +172,11 @@ class Metric:
 
       @classmethod
       def from_model_output(cls, **model_output) -> Metric:
-        mask = model_output.get("mask")
+        kw = {}
+        if "mask" in model_output:
+          kw["mask"] = model_output["mask"]
         output = fun(**model_output)
-        if mask is not None and (output.shape or [0])[0] != mask.shape[0]:
-          logging.warning(
-              "Ignoring mask for fun(**model output)"
-              "because of shape mismatch: "
-              "output.shape=%s vs. mask.shape=%s", output.shape, mask.shape)
-          mask = None
-        return super().from_model_output(output, mask=mask)
+        return super().from_model_output(output, **kw)
 
     return FromFun
 
@@ -217,14 +212,10 @@ class Metric:
       @classmethod
       def from_model_output(cls, **model_output) -> Metric:
         output = jnp.array(model_output[name])
-        mask = model_output.get("mask")
-        if mask is not None and (output.shape or [0])[0] != mask.shape[0]:
-          logging.warning(
-              "Ignoring mask for model output '%s' because of shape mismatch: "
-              "output.shape=%s vs. mask.shape=%s", name,
-              output.shape, mask.shape)
-          mask = None
-        return super().from_model_output(output, mask=mask)
+        kw = {}
+        if "mask" in model_output:
+          kw["mask"] = model_output["mask"]
+        return super().from_model_output(output, **kw)
 
     return FromOutput
 
@@ -429,7 +420,7 @@ class LastValue(Metric):
   @classmethod
   def from_model_output(cls,
                         value: jnp.array,
-                        mask: Optional[jnp.array] = None,
+                        mask: Optional[jnp.array],
                         **_) -> Metric:
     if mask is None:
       mask = jnp.ones((value.shape or [()])[0])
@@ -465,10 +456,12 @@ class Average(Metric):
   @classmethod
   def from_model_output(cls,
                         values: jnp.array,
-                        mask: Optional[jnp.array] = None,
+                        mask: Optional[jnp.array],
                         **_) -> Metric:
+    # Special case: logging scalar values (e.g. loss).
     if values.ndim == 0:
       values = values[None]
+      mask = jnp.ones([1])
     if mask is None:
       mask = jnp.ones_like(values)
     # Leading dimensions of mask and values must match.
@@ -514,7 +507,7 @@ class Std(Metric):
   @classmethod
   def from_model_output(cls,
                         values: jnp.array,
-                        mask: Optional[jnp.array] = None,
+                        mask: Optional[jnp.array],
                         **_) -> Metric:
     if values.ndim == 0:
       values = values[None]
