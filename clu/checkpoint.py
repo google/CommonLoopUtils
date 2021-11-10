@@ -54,6 +54,7 @@ Loading the model e.g. in a Colab:
 """
 
 import collections
+import os
 import re
 from typing import Any, Dict, Optional, TypeVar
 
@@ -70,6 +71,13 @@ import tensorflow as tf
 
 
 T = TypeVar("T")
+SCHEME_RE = re.compile("^(?P<scheme>[a-z][a-z0-9.+-]+://)?(?P<path>.*)", re.I)
+
+
+def safe_normpath(path: str) -> str:
+  """Normalizes path safely to get around `gfile.glob()` limitations."""
+  d = SCHEME_RE.match(path).groupdict()
+  return (d["scheme"] or "") + os.path.normpath(d["path"])
 
 
 def load_state_dict(base_directory) -> Dict[str, Any]:
@@ -92,12 +100,7 @@ def load_state_dict(base_directory) -> Dict[str, Any]:
   Raises:
     FileNotFoundError: If there is no checkpoint to restore.
   """
-  ckpt = Checkpoint(base_directory)
-  if not ckpt.latest_checkpoint:
-    raise FileNotFoundError(f"No checkpoint found in {base_directory}")
-  with utils.log_activity("load_state_dict"):
-    with tf.io.gfile.GFile(ckpt.latest_checkpoint_flax, "rb") as f:
-      return flax.serialization.msgpack_restore(f.read())
+  return Checkpoint(base_directory).restore(state=None)
 
 
 class CheckpointInfo(
@@ -176,6 +179,7 @@ class Checkpoint:
     """
     if tf_state is None:
       tf_state = dict()
+    base_directory = safe_normpath(base_directory)
     self.base_directory = base_directory
     self.max_to_keep = max_to_keep
     self.checkpoint_name = checkpoint_name
@@ -185,6 +189,7 @@ class Checkpoint:
         base_directory,
         max_to_keep=max_to_keep,
         checkpoint_name=checkpoint_name)
+    self.restored_from = None
 
   def get_latest_checkpoint_to_restore_from(self):
     """Returns the latest checkpoint to restore from.
@@ -212,17 +217,25 @@ class Checkpoint:
     return self.tf_checkpoint_manager.latest_checkpoint
 
   @property
-  def latest_checkpoint_flax(self) -> Optional[str]:
-    """Path of the latest serialized `state`.
+  def current_checkpoint(self) -> Optional[str]:
+    """Returns current checkpoint.
+
+    Note that after instance creation this will point to "ckpt-0", which does
+    not actually exist. After the first save (either via `.save()` or via
+    `.restore_or_initialize()`) it will point to "ckpt-1". When the checkpoint
+    is loaded from a specific checkpoint (via `.restore(state, checkpoint)`)
+    then this property can be different from `.latest_checkpoint`.
 
     Returns:
-      Path of the file containing the serialized Flax state. The returned value
-      is `None` if there is no previously stored checkpoint in `base_directory`
-      specified to `__init__()`.
+      A string refering to the current checkpoint. See `.latest_checkpoint` for
+      a description of the format.
     """
-    if self.latest_checkpoint is None:
+    latest_checkpoint = self.latest_checkpoint
+    if latest_checkpoint is None:
       return None
-    return self._flax_path(self.latest_checkpoint)
+    checkpoint_info = CheckpointInfo.from_path(latest_checkpoint)
+    number = self.tf_checkpoint.save_counter.numpy()
+    return str(checkpoint_info._replace(number=number))
 
   def _flax_path(self, checkpoint: str) -> str:
     return "{}.flax".format(checkpoint)
@@ -234,100 +247,116 @@ class Checkpoint:
     return str(CheckpointInfo.from_path(checkpoint).increment())
 
   def _checkpoint_number(self, checkpoint: Optional[str]) -> Optional[int]:
-    if checkpoint is not None:
-      return CheckpointInfo.from_path(checkpoint).number
+    if checkpoint is None:
+      return None
+    return CheckpointInfo.from_path(checkpoint).number
+
+  def _delete_future_checkpoints(self):
+    """Deletes checkpoints that are newer than the currently loaded checkpoint.
+
+    This happens when the checkpoint was initialized from a checkpoint that was
+    not the latest checkpoint (e.g. when recovering from a pre-emption in a
+    `MultihostCheckpoint` where some workers finished writing their checkpoints
+    and others didn't).
+    """
+    checkpoint = self.current_checkpoint
+    while True:
+      checkpoint = self._next_checkpoint(checkpoint)
+      paths = tf.io.gfile.glob(f"{checkpoint}.*")
+      if not paths:
+        break
+      for path in paths:
+        logging.info("Cleaning up future checkpoint file '%s'", path)
+        tf.io.gfile.remove(path)
 
   @utils.logged_with("Checkpoint.save()")
   def save(self, state) -> str:
     """Saves a new checkpoints in the directory.
+
+    Note that if the checkpoint was restored from an earlier checkpoint than the
+    latest available, then saving the checkpoint will and/or delete any
+    checkpoints later than the restored one.
+
+    For example, if there are checkpoints `(1, 2, 3)` and then checkpoint `1`
+    is restored, then calling `.save()` on that restored checkpoint will result
+    in `2` being overwritten and `3` being deleted.
+
+    This overwriting/deleting behavior allows for seamless integration with
+    `MultihostCheckpoint` after pre-emption (i.e. one of the workers might have
+    stored one more checkpoint, but that checkpoint is only available on that
+    one worker and must be overwritten when the training continues).
+
+    After such an overwrite, the attributes `.current_checkpoint` and
+    `.latest_checkpoint` will point to newly written checkpoint (in above case
+    `2`), but the list `.tf_checkpoint_manager.checkpoints` might be out of sync
+    and should not be used.
 
     Args:
       state: Flax checkpoint to be stored.
 
     Returns:
       The checkpoint identifier ({base_directory}/ckpt-{number}).
-
-    Raises:
-      RuntimeError: If tf_checkpoint.save_counter does not match
-          tf_checkpoint_manager.latest_checkpoint.
     """
-    latest_checkpoint_num = self._checkpoint_number(self.latest_checkpoint) or 0
-    if latest_checkpoint_num != self.tf_checkpoint.save_counter.numpy():
-      raise RuntimeError(
-          f"Expected save_counter={self.tf_checkpoint.save_counter.numpy()} "
-          f"to match latest_checkpoint={self.latest_checkpoint}. Make sure "
-          f"the checkpoint is initialized via `.restore_or_initialize()` "
-          f"before it's stored and that no other process writes to the same "
-          f"checkpoint directory.")
-    next_checkpoint = self._next_checkpoint(self.latest_checkpoint)
+    self._delete_future_checkpoints()
+
+    next_checkpoint = self._next_checkpoint(self.current_checkpoint)
     flax_path = self._flax_path(next_checkpoint)
+    logging.info("Storing next checkpoint '%s'", next_checkpoint)
+
     if not tf.io.gfile.exists(self.base_directory):
       tf.io.gfile.makedirs(self.base_directory)
     with tf.io.gfile.GFile(flax_path, "wb") as f:
       f.write(flax.serialization.to_bytes(state))
-    checkpoints = set(self.tf_checkpoint_manager.checkpoints)
+
+    checkpoints_before_save = set(self.tf_checkpoint_manager.checkpoints)
     # Write Tensorflow data last. This way Tensorflow checkpoint generation
     # logic will make sure to only commit checkpoints if they complete
     # successfully. A previously written `flax_path` would then simply be
     # overwritten next time.
     self.tf_checkpoint_manager.save()
-    for checkpoint in checkpoints.difference(
-        self.tf_checkpoint_manager.checkpoints):
-      tf.io.gfile.remove(self._flax_path(checkpoint))
-    if next_checkpoint != self.latest_checkpoint:
-      raise AssertionError(  # pylint: disable=g-doc-exception
-          "Expected next_checkpoint to match latest_checkpoint: "
-          f"{next_checkpoint} != {self.latest_checkpoint}")
-    return self.latest_checkpoint
+    # Clean up stale Flax. Tensorflow automatically does remove checkpoints
+    # older than `max_to_keep`, so we do the same for the Flax checkpoints.
+    stale_checkpoints = checkpoints_before_save - set(
+        self.tf_checkpoint_manager.checkpoints)
+    for checkpoint in stale_checkpoints:
+      if tf.io.gfile.exists(self._flax_path(checkpoint)):
+        tf.io.gfile.remove(self._flax_path(checkpoint))
+    assert self.current_checkpoint == next_checkpoint, (
+        "Expected next_checkpoint to match .current_checkpoint: "
+        f"{next_checkpoint} != {self.current_checkpoint}")
+    return self.current_checkpoint
 
   @utils.logged_with("Checkpoint.restore_or_initialize()")
-  def restore_or_initialize(self,
-                            state: T,
-                            checkpoint: Optional[str] = None) -> T:
+  def restore_or_initialize(self, state: T) -> T:
     """Restores from the latest checkpoint, or creates a first checkpoint.
 
     Args:
-      state : A flax checkpoint to be stored or to serve as a template. If the
-        checkoint is restored (and not initialized), then the fields of `state`
-        must match the data previously stored.
-      checkpoint: A flax checkpoint to be restored. If not specified, the
-        latest checkpoint is restored.
+      state : A data structure to be stored or to serve as a template. If the
+        checkpoint is restored (and not initialized), then the fields of `state`
+        must match the data previously stored. See
+        `flax.serialization.from_state_dict()` for details.
 
     Returns:
       The restored `state` object. Note that all TensorFlow `Trackable`s in
       `tf_state` (see `__init__()`) are also updated.
     """
-    if checkpoint:
-      checkpoint_to_restore = checkpoint
-    else:
-      logging.info("No checkpoint specified. Restore the latest checkpoint.")
-      checkpoint_to_restore = self.get_latest_checkpoint_to_restore_from()
-    if not checkpoint_to_restore:
-      logging.info("Checkpoint %s does not exist.", checkpoint_to_restore)
-      self.save(state)
-      return state
-    logging.info("Restoring checkpoint: %s", checkpoint_to_restore)
-    self.tf_checkpoint.restore(checkpoint_to_restore)
-    flax_path = self._flax_path(checkpoint_to_restore)
-    with tf.io.gfile.GFile(flax_path, "rb") as f:
-      state = flax.serialization.from_bytes(state, f.read())
-    logging.info("Restored save_counter=%d restored_checkpoint=%s",
-                 self.tf_checkpoint.save_counter.numpy(),
-                 checkpoint_to_restore)
+    checkpoint = self.get_latest_checkpoint_to_restore_from()
+    if checkpoint is not None:
+      return self.restore(state, checkpoint)
+    logging.info("Storing initial version.")
+    self.save(state)
     return state
 
-  def restore(self, state: T, checkpoint: Optional[str] = None) -> T:
-    """Restores from the latest checkpoint.
+  def restore_dict(self, checkpoint: Optional[str] = None) -> Dict[str, Any]:
+    """Restores last checkpoint and returns `state` as dictionary.
 
-    Similar to `restore_or_initialize()`, but raises a `FileNotFoundError` if
-    there is no checkpoint.
+    The only difference between this method and `.restore()` is the return type
+    annotation.
 
     Args:
-      state : A flax checkpoint to be stored or to serve as a template. If the
-        checkoint is restored (and not initialized), then the fields of `state`
-        must match the data previously stored.
-      checkpoint: A flax checkpoint path to be restored. If not specified, the
-        latest checkpoint is restored.
+      checkpoint: Checkpoint name that should be restored. Defaults to latest
+        available checkpoint. See `.latest_checkpoint` for a description of the
+        format of this string.
 
     Returns:
       The restored `state` object. Note that all TensorFlow `Trackable`s in
@@ -337,42 +366,52 @@ class Checkpoint:
       FileNotFoundError: If specified checkpoint does not exist, or if there
       is no checkpoint to restore in case no checkpoint was specified.
     """
-    checkpoint = self._check_or_get_latest_checkpoint(checkpoint)
-    return self.restore_or_initialize(state, checkpoint)
+    return self.restore(state=None, checkpoint=checkpoint)
 
-  def restore_dict(self, checkpoint: Optional[str] = None) -> Dict[str, Any]:
-    """Restores from the checkpoint as state dict.
+  def restore(self,
+              state: Optional[T],
+              checkpoint: Optional[str] = None) -> T:
+    """Restores from the latest checkpoint.
+
+    Similar to `restore_or_initialize()`, but raises a `FileNotFoundError` if
+    there is no checkpoint.
 
     Args:
-      checkpoint: A flax checkpoint path to be restored. If not specified, the
-        latest checkpoint is restored.
+      state : Template data structure that will serve as a template for the
+        returned state. If the loaded data does not match that template, then an
+        exception is raised. It's also possible to specify `state=None`, in
+        which case a dictionary will be returned. See
+        `flax.serialization.from_state_dict()` for details.
+      checkpoint: Checkpoint name that should be restored. Defaults to latest
+        available checkpoint. See `.latest_checkpoint` for a description of the
+        format of this string.
 
     Returns:
-      The restored state dict.
-      Note that all TensorFlow `Trackable`s in `tf_state` (see `__init__()`) are
-      also updated.
+      The restored `state` object. Note that all TensorFlow `Trackable`s in
+      `tf_state` (see `__init__()`) are also updated.
 
     Raises:
       FileNotFoundError: If specified checkpoint does not exist, or if there
-        is no checkpoint to restore in case no checkpoint was specified.
+      is no checkpoint to restore in case no checkpoint was specified.
     """
-    checkpoint = self._check_or_get_latest_checkpoint(checkpoint)
-    logging.info("Restoring checkpoint as state dict from %s", checkpoint)
+    if checkpoint is None:
+      checkpoint = self.get_latest_checkpoint_to_restore_from()
+      if checkpoint is None:
+        raise FileNotFoundError(f"No checkpoint found at {self.base_directory}")
+    if not tf.io.gfile.exists(self._flax_path(checkpoint)):
+      raise FileNotFoundError(f"Checkpoint {checkpoint} does not exist")
+
+    logging.info("Restoring checkpoint: %s", checkpoint)
     self.tf_checkpoint.restore(checkpoint)
     flax_path = self._flax_path(checkpoint)
     with tf.io.gfile.GFile(flax_path, "rb") as f:
-      state = flax.serialization.msgpack_restore(f.read())
-    return state
+      state = flax.serialization.from_bytes(state, f.read())
 
-  def _check_or_get_latest_checkpoint(self, checkpoint: Optional[str]) -> str:
-    if checkpoint:
-      if not tf.io.gfile.exists(self._flax_path(checkpoint)):
-        raise FileNotFoundError(f"Checkpoint {checkpoint} does not exist")
-    else:
-      checkpoint = self.get_latest_checkpoint_to_restore_from()
-      if not checkpoint:
-        raise FileNotFoundError(f"No checkpoint found at {self.base_directory}")
-    return checkpoint
+    logging.info("Restored save_counter=%d restored_checkpoint=%s",
+                 self.tf_checkpoint.save_counter.numpy(),
+                 checkpoint)
+    self.restored_from = checkpoint
+    return state
 
 
 class MultihostCheckpoint(Checkpoint):
@@ -402,9 +441,9 @@ class MultihostCheckpoint(Checkpoint):
     Args:
       multihost_base_directory: Directory that will be used to construct a
         host-specific `base_directory` under which the checkpoints will be
-        stored. Usually a directory *within* the work unit's workdirectory
-        (e.g. `f"{workdir}/checkpoints`). One directory per host will be created
-        at the same level as this base directory labeled
+        stored. Usually a directory *within* the work unit's workdirectory (e.g.
+        `f"{workdir}/checkpoints`). One directory per host will be created at
+        the same level as this base directory labeled
         `f"{multihost_base_directory}-{host_id}"`.
       tf_state: A dictionary of TensorFlow `Trackable` to be serialized, for
         example a dataset iterator.
@@ -435,6 +474,7 @@ class MultihostCheckpoint(Checkpoint):
     base_directory_glob = f"{self.multihost_base_directory}-*"
     base_directories = tf.io.gfile.glob(base_directory_glob)
     if self.base_directory not in base_directories:
+      logging.info("%s not in %s", self.base_directory, base_directories)
       return None
     checkpoints = {}
     common_numbers = None
