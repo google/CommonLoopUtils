@@ -20,7 +20,7 @@ import concurrent.futures
 import contextlib
 import queue
 import time
-from typing import Callable, Optional, Sequence
+from typing import Callable, Iterable, Optional, Sequence
 
 from absl import logging
 from clu import metric_writers
@@ -82,7 +82,8 @@ class PeriodicAction(abc.ABC):
   def __init__(self,
                *,
                every_steps: Optional[int] = None,
-               every_secs: Optional[float] = None):
+               every_secs: Optional[float] = None,
+               on_steps: Optional[Iterable[int]] = None):
     """Creates an action that triggers periodically.
 
     Args:
@@ -91,9 +92,12 @@ class PeriodicAction(abc.ABC):
       every_secs: If no action has triggered for specified `every_secs`, then
         an action is triggered. Note that the previous action might have been
         triggered by `every_steps` or by `every_secs`.
+      on_steps: If the current step is included in this set, then an action is
+        triggered.
     """
     self._every_steps = every_steps
     self._every_secs = every_secs
+    self._on_steps = set(on_steps or [])
     # Step and timestamp for the last time the action triggered.
     self._previous_step = None
     self._previous_time = None
@@ -120,6 +124,8 @@ class PeriodicAction(abc.ABC):
       return True
     if (self._every_secs is not None and
         t - self._previous_time > self._every_secs):
+      return True
+    if step in self._on_steps:
       return True
     return False
 
@@ -161,7 +167,8 @@ class ReportProgress(PeriodicAction):
                num_train_steps: Optional[int] = None,
                writer: Optional[MetricWriter] = None,
                every_steps: Optional[int] = None,
-               every_secs: Optional[float] = 60.0):
+               every_secs: Optional[float] = 60.0,
+               on_steps: Optional[Iterable[int]] = None):
     """Creates a new ReportProgress hook.
 
     Warning: The progress and the reported steps_per_sec are estimates. We
@@ -174,8 +181,13 @@ class ReportProgress(PeriodicAction):
         an estimate for precise values use Xprof.
       every_steps: How often to report the progress in number of training steps.
       every_secs: How often to report progress as time interval.
+      on_steps: Report the progress on these training steps.
     """
-    super().__init__(every_steps=every_steps, every_secs=every_secs)
+    on_steps = set(on_steps or [])
+    if num_train_steps is not None:
+      on_steps.add(num_train_steps)
+    super().__init__(
+        every_steps=every_steps, every_secs=every_secs, on_steps=on_steps)
     # Check for negative values, e.g. tf.data.UNKNOWN/INFINITE_CARDINALTY.
     if num_train_steps is not None and num_train_steps < 0:
       num_train_steps = None
@@ -187,10 +199,6 @@ class ReportProgress(PeriodicAction):
     # Using max_worker=1 guarantees that the calls to _wait_jax_async_dispatch()
     # happen sequentially.
     self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
-
-  def _should_trigger(self, step: int, t: float):
-    # Always trigger at last step.
-    return super()._should_trigger(step, t) or step == self._num_train_steps
 
   def _apply(self, step: int, t: float):
     steps_per_sec = (step - self._previous_step) / (t - self._previous_time)
@@ -399,6 +407,7 @@ class PeriodicCallback(PeriodicAction):
                *,
                every_steps: Optional[int] = None,
                every_secs: Optional[float] = None,
+               on_steps: Optional[Iterable[int]] = None,
                callback_fn: Callable,
                execute_async: bool = False,
                pass_step_and_time: bool = True):
@@ -407,12 +416,14 @@ class PeriodicCallback(PeriodicAction):
     Args:
       every_steps: See `PeriodicAction.__init__()`.
       every_secs: See `PeriodicAction.__init__()`.
+      on_steps: See `PeriodicAction.__init__()`.
       callback_fn: A callback function. It must accept `step` and `t` as
         arguments; arguments are passed by keyword.
       execute_async: if True wraps the callback into an async call.
       pass_step_and_time: if True the step and t are passed to the callback.
     """
-    super().__init__(every_steps=every_steps, every_secs=every_secs)
+    super().__init__(
+        every_steps=every_steps, every_secs=every_secs, on_steps=on_steps)
     self._cb_results = collections.deque(maxlen=1)
     self.pass_step_and_time = pass_step_and_time
     if execute_async:

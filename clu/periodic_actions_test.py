@@ -228,6 +228,15 @@ class PeriodicCallbackTest(tf.test.TestCase):
     ]
     self.assertListEqual(expected_calls, callback.call_args_list)
 
+  def test_on_steps(self):
+    callback = mock.Mock()
+    hook = periodic_actions.PeriodicCallback(on_steps=[8], callback_fn=callback)
+
+    for step in range(1, 10):
+      hook(step, remainder=step % 3)
+
+    callback.assert_called_once_with(remainder=2, step=8, t=mock.ANY)
+
   def test_async_execution(self):
     out = []
 
