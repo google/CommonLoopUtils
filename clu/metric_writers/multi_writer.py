@@ -28,6 +28,13 @@ class MultiWriter(interface.MetricWriter):
   def __init__(self, writers: Sequence[interface.MetricWriter]):
     self._writers = tuple(writers)
 
+  def write_summaries(
+      self, step: int,
+      values: Mapping[str, Array],
+      metadata: Optional[Mapping[str, Any]] = None):
+    for w in self._writers:
+      w.write_summaries(step, values, metadata)
+
   def write_scalars(self, step: int, scalars: Mapping[str, Scalar]):
     for w in self._writers:
       w.write_scalars(step, scalars)

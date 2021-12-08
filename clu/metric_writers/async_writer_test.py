@@ -30,6 +30,18 @@ class AsyncWriterTest(tf.test.TestCase):
     self.sync_writer = mock.create_autospec(interface.MetricWriter)
     self.writer = async_writer.AsyncWriter(self.sync_writer)
 
+  def test_write_summaries_async(self):
+    self.writer.write_summaries(
+        11,
+        {"a": np.eye(3, dtype=np.uint8),
+         "b": np.eye(2, dtype=np.float32)},
+        {"a": np.ones((2, 3)).tobytes()})
+    self.writer.flush()
+    self.sync_writer.write_summaries.assert_called_with(
+        step=11,
+        values={"a": mock.ANY, "b": mock.ANY},
+        metadata={"a": mock.ANY})
+
   def test_write_scalars_async(self):
     self.writer.write_scalars(0, {"a": 3, "b": 0.15})
     self.writer.write_scalars(2, {"a": 5, "b": 0.007})

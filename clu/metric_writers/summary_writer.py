@@ -40,6 +40,15 @@ class SummaryWriter(interface.MetricWriter):
     self._summary_writer = tf.summary.create_file_writer(logdir)
 
 
+  def write_summaries(
+      self, step: int,
+      values: Mapping[str, Array],
+      metadata: Optional[Mapping[str, Any]] = None):
+    with self._summary_writer.as_default():
+      for key, value in values.items():
+        md = metadata.get(key) if metadata is not None else None
+        tf.summary.write(key, value, step=step, metadata=md)
+
   def write_scalars(self, step: int, scalars: Mapping[str, Scalar]):
     with self._summary_writer.as_default():
       for key, value in scalars.items():

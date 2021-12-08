@@ -27,6 +27,13 @@ Scalar = interface.Scalar
 class LoggingWriter(interface.MetricWriter):
   """MetricWriter that writes all values to INFO log."""
 
+  def write_summaries(
+      self, step: int,
+      values: Mapping[str, Array],
+      metadata: Optional[Mapping[str, Any]] = None):
+    logging.info("[%d] Got raw tensors: %s.", step,
+                 {k: v.shape for k, v in values.items()})
+
   def write_scalars(self, step: int, scalars: Mapping[str, Scalar]):
     values = [
         f"{k}={v:.6f}" if isinstance(v, float) else f"{k}={v}"

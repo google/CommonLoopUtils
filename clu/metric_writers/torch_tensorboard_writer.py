@@ -19,6 +19,7 @@ Use this writer for the Pytorch-based code.
 """
 
 from typing import Any, Mapping, Optional
+from absl import logging
 
 
 from clu.metric_writers import interface
@@ -35,6 +36,14 @@ class TorchTensorboardWriter(interface.MetricWriter):
     super().__init__()
     self._writer = tensorboard.SummaryWriter(log_dir=logdir)
 
+
+  def write_summaries(
+      self, step: int,
+      values: Mapping[str, Array],
+      metadata: Optional[Mapping[str, Any]] = None):
+    logging.log_first_n(
+        logging.WARNING,
+        "TorchTensorboardWriter does not support writing raw summaries.", 1)
 
   def write_scalars(self, step: int, scalars: Mapping[str, Scalar]):
     for key, value in scalars.items():

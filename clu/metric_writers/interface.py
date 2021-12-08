@@ -33,6 +33,22 @@ class MetricWriter(abc.ABC):
   """MetricWriter inferface."""
 
   @abc.abstractmethod
+  def write_summaries(
+      self, step: int,
+      values: Mapping[str, Array],
+      metadata: Optional[Mapping[str, Any]] = None):
+    """Saves an arbitrary tensor summary.
+
+    Useful when working with custom plugins or constructing a summary directly.
+
+    Args:
+      step: Step at which the scalar values occurred.
+      values: Mapping from tensor keys to tensors.
+      metadata: Optional SummaryMetadata, as a proto or serialized bytes.
+                Note that markdown formatting is rendered by tensorboard.
+    """
+
+  @abc.abstractmethod
   def write_scalars(self, step: int, scalars: Mapping[str, Scalar]):
     """Write scalar values for the step.
 

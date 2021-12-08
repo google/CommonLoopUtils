@@ -59,6 +59,13 @@ class AsyncWriter(interface.MetricWriter):
         thread_name_prefix="AsyncWriter", max_workers=num_workers)
 
 
+  def write_summaries(
+      self, step: int,
+      values: Mapping[str, Array],
+      metadata: Optional[Mapping[str, Any]] = None):
+    self._pool(self._writer.write_summaries)(
+        step=step, values=values, metadata=metadata)
+
   def write_scalars(self, step: int, scalars: Mapping[str, Scalar]):
     self._pool(self._writer.write_scalars)(step=step, scalars=scalars)
 

@@ -24,6 +24,20 @@ import tensorflow as tf
 from tensorboard.plugins.hparams import plugin_data_pb2
 
 
+def _load_summaries_data(logdir):
+  """Loads raw summaries data from events in a logdir."""
+  paths = tf.io.gfile.glob(os.path.join(logdir, "events.out.tfevents.*"))
+  data = collections.defaultdict(dict)
+  metadata = collections.defaultdict(dict)
+  for path in paths:
+    for event in tf.compat.v1.train.summary_iterator(path):
+      for value in event.summary.value:
+        data[event.step][value.tag] = tf.make_ndarray(value.tensor)
+        if value.HasField("metadata"):
+          metadata[event.step][value.tag] = value.metadata.SerializeToString()
+  return data, metadata
+
+
 def _load_histograms_data(logdir):
   """Loads tensor summaries from events in a logdir."""
   # Note: new versions of histograms don't use the HistogramProto type, but
@@ -75,6 +89,19 @@ class SummaryWriterTest(tf.test.TestCase):
     super().setUp()
     self.logdir = self.get_temp_dir()
     self.writer = summary_writer.SummaryWriter(self.logdir)
+
+  def test_write_summaries(self):
+    self.writer.write_summaries(
+        11,
+        {"a": np.eye(3, dtype=np.uint8),
+         "b": np.eye(2, dtype=np.float32)},
+        {"a": np.ones((2, 3)).tobytes()})
+    self.writer.flush()
+    data, metadata = _load_summaries_data(self.logdir)
+    self.assertAllClose(
+        data[11],
+        {"a": np.eye(3, dtype=np.uint8), "b": np.eye(2, dtype=np.float32)})
+    self.assertIn("a", metadata[11])
 
   def test_write_scalar(self):
     self.writer.write_scalars(11, {"a": 0.6, "b": 15})
