@@ -331,7 +331,7 @@ class Collection:
 
     You can use this function to generate it dynamically:
 
-      Mymetrics = metrics.Collection(accuracy=metrics.Accuracy)
+      MyMetrics = metrics.Collection.create(accuracy=metrics.Accuracy)
 
     Args:
       **metrics: Names and metric classes to use include in the collection.
