@@ -253,7 +253,7 @@ class PeriodicCallbackTest(tf.test.TestCase):
     # Block till all the hooks have finished.
     hook.get_last_callback_result().result()
     # Check order of execution is preserved.
-    self.assertListEqual(out, [1, 2, 3])
+    self.assertListEqual(out, [0, 1, 2, 3])
 
   def test_error_async_is_forwarded(self):
 
@@ -266,10 +266,9 @@ class PeriodicCallbackTest(tf.test.TestCase):
         every_steps=1, callback_fn=cb, execute_async=True)
 
     hook(0)
-    hook(1)
 
     with self.assertRaises(Exception):
-      hook(2)
+      hook(1)
 
   def test_function_without_step_and_time(self):
 

@@ -104,19 +104,18 @@ class PeriodicAction(abc.ABC):
     # Just for checking that __call__() was called every step.
     self._last_step = None
 
-  def _init_and_check(self, step: int, t: float) -> bool:
+  def _init_and_check(self, step: int, t: float):
     """Initializes and checks it was called at every step."""
     if self._previous_step is None:
       self._previous_step = step
       self._previous_time = t
       self._last_step = step
-      return False
-    if self._every_steps is not None and step - self._last_step != 1:
+    elif self._every_steps is not None and step - self._last_step != 1:
       raise ValueError(f"PeriodicAction must be called after every step once "
                        f"(every_steps={self._every_steps}, "
                        f"previous_step={self._previous_step}, step={step}).")
-    self._last_step = step
-    return True
+    else:
+      self._last_step = step
 
   def _should_trigger(self, step: int, t: float) -> bool:
     """Return whether the action should trigger this step."""
@@ -148,7 +147,8 @@ class PeriodicAction(abc.ABC):
     if t is None:
       t = time.time()
 
-    if self._init_and_check(step, t) and self._should_trigger(step, t):
+    self._init_and_check(step, t)
+    if self._should_trigger(step, t):
       self._apply(step, t)
       self._after_apply(step, t)
       return True
@@ -199,6 +199,10 @@ class ReportProgress(PeriodicAction):
     # Using max_worker=1 guarantees that the calls to _wait_jax_async_dispatch()
     # happen sequentially.
     self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+
+  def _should_trigger(self, step: int, t: float) -> bool:
+    # Note: step == self._previous_step is only True on the first step.
+    return step != self._previous_step and super()._should_trigger(step, t)
 
   def _apply(self, step: int, t: float):
     steps_per_sec = (step - self._previous_step) / (t - self._previous_time)
@@ -437,7 +441,8 @@ class PeriodicCallback(PeriodicAction):
     if t is None:
       t = time.time()
 
-    if self._init_and_check(step, t) and self._should_trigger(step, t):
+    self._init_and_check(step, t)
+    if self._should_trigger(step, t):
       # Additional arguments to the callback are passed here through **kwargs.
       self._apply(step, t, **kwargs)
       self._after_apply(step, t)
