@@ -27,11 +27,14 @@ Scalar = interface.Scalar
 class LoggingWriter(interface.MetricWriter):
   """MetricWriter that writes all values to INFO log."""
 
+  def __init__(self, prefix=""):
+    self._prefix = prefix
+
   def write_summaries(
       self, step: int,
       values: Mapping[str, Array],
       metadata: Optional[Mapping[str, Any]] = None):
-    logging.info("[%d] Got raw tensors: %s.", step,
+    logging.info("%s[%d] Got raw tensors: %s.", self._prefix, step,
                  {k: v.shape for k, v in values.items()})
 
   def write_scalars(self, step: int, scalars: Mapping[str, Scalar]):
@@ -39,19 +42,19 @@ class LoggingWriter(interface.MetricWriter):
         f"{k}={v:.6f}" if isinstance(v, float) else f"{k}={v}"
         for k, v in sorted(scalars.items())
     ]
-    logging.info("[%d] %s", step, ", ".join(values))
+    logging.info("%s[%d] %s", self._prefix, step, ", ".join(values))
 
   def write_images(self, step: int, images: Mapping[str, Array]):
-    logging.info("[%d] Got images: %s.", step,
+    logging.info("%s[%d] Got images: %s.", self._prefix, step,
                  {k: v.shape for k, v in images.items()})
 
   def write_audios(
       self, step: int, audios: Mapping[str, Array], *, sample_rate: int):
-    logging.info("[%d] Got audios: %s.", step,
+    logging.info("%s[%d] Got audios: %s.", self._prefix, step,
                  {k: v.shape for k, v in audios.items()})
 
   def write_texts(self, step: int, texts: Mapping[str, str]):
-    logging.info("[%d] Got texts: %s.", step, texts)
+    logging.info("%s[%d] Got texts: %s.", self._prefix, step, texts)
 
   def write_histograms(self,
                        step: int,
@@ -62,11 +65,11 @@ class LoggingWriter(interface.MetricWriter):
       histo, bins = _compute_histogram_as_tf(
           np.asarray(value), num_buckets=num_buckets.get(key))
       if histo is not None:
-        logging.info("[%d] Histogram for %r = {%s}", step, key,
+        logging.info("%s[%d] Histogram for %r = {%s}", self._prefix, step, key,
                      _get_histogram_as_string(histo, bins))
 
   def write_hparams(self, hparams: Mapping[str, Any]):
-    logging.info("Hyperparameters: %s", hparams)
+    logging.info("%sHyperparameters: %s", self._prefix, hparams)
 
   def flush(self):
     logging.flush()

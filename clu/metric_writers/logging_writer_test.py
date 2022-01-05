@@ -79,6 +79,30 @@ class LoggingWriterTest(tf.test.TestCase):
         "INFO:absl:Hyperparameters: {'learning_rate': 0.1, 'batch_size': 128}"
     ])
 
+  def test_prefix(self):
+    writer = logging_writer.LoggingWriter(prefix="Train: ")
+    with self.assertLogs(level="INFO") as logs:
+      writer.write_scalars(0, {"a": 3, "b": 0.15})
+      writer.write_images(4, {"input_images": np.zeros((2, 28, 28, 3))})
+      writer.write_texts(4, {"samples": "bla"})
+      writer.write_histograms(
+          step=4,
+          arrays={
+              "a": np.asarray([-0.1, 0.1, 0.3]),
+          },
+          num_buckets={
+              "a": 2,
+          })
+      writer.write_hparams({"learning_rate": 0.1})
+
+    self.assertEqual(logs.output, [
+        "INFO:absl:Train: [0] a=3, b=0.150000",
+        "INFO:absl:Train: [4] Got images: {'input_images': (2, 28, 28, 3)}.",
+        "INFO:absl:Train: [4] Got texts: {'samples': 'bla'}.",
+        "INFO:absl:Train: [4] Histogram for 'a' = {[-0.1, 0.1): 1, [0.1, 0.3]: 2}",
+        "INFO:absl:Train: Hyperparameters: {'learning_rate': 0.1}",
+    ])
+
 
 if __name__ == "__main__":
   tf.test.main()
