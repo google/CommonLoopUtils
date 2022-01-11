@@ -23,11 +23,11 @@ import time
 from typing import Callable, Iterable, Optional, Sequence
 
 from absl import logging
+from clu import asynclib
 from clu import metric_writers
 from clu import platform
 from clu import profiler
 
-from clu.internal import asynclib
 import jax
 import jax.numpy as jnp
 

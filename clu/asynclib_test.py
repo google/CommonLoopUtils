@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for clu.internal.asynclib."""
+"""Tests for clu.asynclib."""
 
 from unittest import mock
 
-from clu.internal import asynclib
+from clu import asynclib
 import tensorflow as tf
 
 

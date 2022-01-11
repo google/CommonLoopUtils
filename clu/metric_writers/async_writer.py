@@ -24,8 +24,8 @@
 import contextlib
 from typing import Any, Mapping, Optional, Sequence
 
+from clu import asynclib
 
-from clu.internal import asynclib
 from clu.metric_writers import interface
 from clu.metric_writers import multi_writer
 
