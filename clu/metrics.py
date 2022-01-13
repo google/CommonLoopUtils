@@ -63,6 +63,7 @@ from typing import Any, Callable, Dict, Optional, Sequence, Tuple
 from absl import logging
 
 from clu.internal import utils
+import clu.values
 import flax
 import jax
 import jax.numpy as jnp
@@ -135,6 +136,9 @@ class Metric:
   def compute(self) -> jnp.array:
     """Computes final metrics from intermediate values."""
     raise NotImplementedError("Must override compute()")
+
+  def compute_value(self) -> clu.values.Value:
+    return clu.values.Scalar(self.compute())
 
   def reduce(self) -> "Metric":
     """Reduces the metric along it first axis by calling `merge()`."""

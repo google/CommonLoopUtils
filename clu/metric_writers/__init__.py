@@ -53,6 +53,7 @@ from clu.metric_writers.interface import MetricWriter
 from clu.metric_writers.logging_writer import LoggingWriter
 from clu.metric_writers.multi_writer import MultiWriter
 from clu.metric_writers.summary_writer import SummaryWriter
+from clu.metric_writers.utils import write_values
 
 
 # TODO(b/200953513): Migrate away from logging imports (on module level)
