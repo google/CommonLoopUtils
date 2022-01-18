@@ -124,7 +124,9 @@ def get_parameter_rows(
 
 def _default_table_value_formatter(value):
   """Formats ints with "," between thousands and floats to 3 digits."""
-  if isinstance(value, int):
+  if isinstance(value, bool):
+    return str(value)
+  elif isinstance(value, int):
     return "{:,}".format(value)
   elif isinstance(value, float):
     return "{:.3}".format(value)

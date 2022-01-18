@@ -165,6 +165,12 @@ class JaxParameterOverviewTest(tf.test.TestCase):
         FLAX_CONV2D_MAPPING_PARAMETER_OVERVIEW_WITH_STATS,
         parameter_overview.get_parameter_overview(variables))
 
+  def test_printing_bool(self):
+    self.assertEqual(
+        parameter_overview._default_table_value_formatter(True), "True")
+    self.assertEqual(
+        parameter_overview._default_table_value_formatter(False), "False")
+
 
 if __name__ == "__main__":
   tf.test.main()
