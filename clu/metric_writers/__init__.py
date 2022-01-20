@@ -1,4 +1,4 @@
-# Copyright 2021 The CLU Authors.
+# Copyright 2022 The CLU Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -64,7 +64,7 @@ FLAGS = flags.FLAGS
 
 
 def create_default_writer(
-    logdir: str,
+    logdir: Optional[str] = None,
     *,
     just_logging: bool = False,
     asynchronous: bool = True) -> MetricWriter:
@@ -74,7 +74,8 @@ def create_default_writer(
   ends (logging, TF summaries etc.).
 
   Args:
-    logdir: Logging dir to use for TF summary files.
+    logdir: Logging dir to use for TF summary files. If empty/None will the
+      returned writer will not write TF summary files.
     just_logging: If True only use a LoggingWriter. This is useful in multi-host
       setups when only the first host should write metrics and all other hosts
       should only write to their own logs.
@@ -90,7 +91,9 @@ def create_default_writer(
       return AsyncWriter(LoggingWriter())
     else:
       return LoggingWriter()
-  writers = [LoggingWriter(), SummaryWriter(logdir)]
+  writers = [LoggingWriter()]
+  if logdir is None:
+    writers.append(SummaryWriter(logdir))
   if asynchronous:
     return AsyncMultiWriter(writers)
   return MultiWriter(writers)
