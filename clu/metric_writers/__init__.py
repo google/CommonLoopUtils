@@ -92,7 +92,7 @@ def create_default_writer(
     else:
       return LoggingWriter()
   writers = [LoggingWriter()]
-  if logdir is None:
+  if logdir is not None:
     writers.append(SummaryWriter(logdir))
   if asynchronous:
     return AsyncMultiWriter(writers)
