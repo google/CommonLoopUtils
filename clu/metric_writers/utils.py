@@ -20,12 +20,20 @@ method of the writer depending on the type of the metric.
 """
 
 import collections
-from typing import Mapping, Union
+from typing import Mapping, Optional, List, Tuple, Union
 
+from absl import flags
 from clu import values
-from clu.metric_writers import interface
+from clu.metric_writers.async_writer import AsyncMultiWriter
+from clu.metric_writers.interface import MetricWriter
+from clu.metric_writers.logging_writer import LoggingWriter
+from clu.metric_writers.multi_writer import MultiWriter
+from clu.metric_writers.summary_writer import SummaryWriter
 import jax.numpy as jnp
 import numpy as np
+
+
+FLAGS = flags.FLAGS
 
 
 def _is_scalar(value):
@@ -37,7 +45,7 @@ def _is_scalar(value):
   return False
 
 
-def write_values(writer: interface.MetricWriter, step: int,
+def write_values(writer: MetricWriter, step: int,
                  metrics: Mapping[str, Union[values.Value, values.ArrayType,
                                              values.ScalarType]]):
   """Writes all provided metrics.
@@ -78,3 +86,40 @@ def write_values(writer: interface.MetricWriter, step: int,
 
   for (fn, extra_args), vals in writes.items():
     fn(step, vals, **dict(extra_args))
+
+
+def create_default_writer(
+    logdir: Optional[str] = None,
+    *,
+    just_logging: bool = False,
+    asynchronous: bool = True) -> MultiWriter:
+  """Create the default writer for the platform.
+
+  On most platforms this will create a MultiWriter that writes to multiple back
+  ends (logging, TF summaries etc.).
+
+  Args:
+    logdir: Logging dir to use for TF summary files. If empty/None will the
+      returned writer will not write TF summary files.
+    just_logging: If True only use a LoggingWriter. This is useful in multi-host
+      setups when only the first host should write metrics and all other hosts
+      should only write to their own logs.
+    write_to_xm_measurements: If True uses XmMeasurementsWriter in addition.
+      default (None) will automatically determine if you # GOOGLE-INTERNAL have
+    asynchronous: If True return an AsyncMultiWriter to not block when writing
+      metrics.
+
+  Returns:
+    A `MetricWriter` according to the platform and arguments.
+  """
+  if just_logging:
+    if asynchronous:
+      return AsyncMultiWriter([LoggingWriter()])
+    else:
+      return MultiWriter([LoggingWriter()])
+  writers = [LoggingWriter()]
+  if logdir is not None:
+    writers.append(SummaryWriter(logdir))
+  if asynchronous:
+    return AsyncMultiWriter(writers)
+  return MultiWriter(writers)

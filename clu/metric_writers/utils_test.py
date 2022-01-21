@@ -13,17 +13,25 @@
 # limitations under the License.
 
 """Tests for interface."""
-
+import itertools
 from typing import Any
 from unittest import mock
 
 from absl.testing import absltest
+from absl.testing import parameterized
 from clu import values
-import clu.metric_writers.interface
-import clu.metric_writers.utils
+from clu.metric_writers import utils
+from clu.metric_writers.async_writer import AsyncMultiWriter
+from clu.metric_writers.async_writer import AsyncWriter
+from clu.metric_writers.interface import MetricWriter
+from clu.metric_writers.logging_writer import LoggingWriter
+from clu.metric_writers.multi_writer import MultiWriter
+from clu.metric_writers.summary_writer import SummaryWriter
 import clu.metrics
 import flax.struct
 import jax.numpy as jnp
+import tensorflow as tf
+
 
 
 @flax.struct.dataclass
@@ -89,10 +97,10 @@ class ONEOF(object):
   """ONEOF(options_list) check value in options_list."""
 
   def __init__(self, container):
-    if not hasattr(container, '__contains__'):
-      raise TypeError('%r is not a container' % container)
+    if not hasattr(container, "__contains__"):
+      raise TypeError(f"{container!r} is not a container")
     if not container:
-      raise ValueError('%r is empty' % container)
+      raise ValueError(f"{container!r} is empty")
     self._c = container
 
   def __eq__(self, o):
@@ -102,46 +110,46 @@ class ONEOF(object):
     return o not in self._c
 
   def __repr__(self):
-    return '<ONEOF(%s)>' % ','.join(repr(i) for i in self._c)
+    return "<ONEOF({})>".format(",".join(repr(i) for i in self._c))
 
 
-class MetricWriterTest(absltest.TestCase):
+class MetricWriterTest(tf.test.TestCase, parameterized.TestCase):
 
   def test_write(self):
-    writer = mock.Mock(spec_set=clu.metric_writers.interface.MetricWriter)
+    writer = mock.Mock(spec_set=MetricWriter)
     step = 3
     num_buckets = 4
     sample_rate = 10
     scalar_metrics = {
-        'loss': clu.metrics.Average.from_model_output(jnp.asarray([1, 2, 3])),
-        'accuracy': clu.metrics.LastValue.from_model_output(jnp.asarray([5])),
+        "loss": clu.metrics.Average.from_model_output(jnp.asarray([1, 2, 3])),
+        "accuracy": clu.metrics.LastValue.from_model_output(jnp.asarray([5])),
     }
     image_metrics = {
-        'image': ImageMetric(jnp.asarray([[4, 5], [1, 2]])),
+        "image": ImageMetric(jnp.asarray([[4, 5], [1, 2]])),
     }
     histogram_metrics = {
-        'hist':
+        "hist":
             HistogramMetric(value=jnp.asarray([7, 8]), num_buckets=num_buckets),
-        'hist2':
+        "hist2":
             HistogramMetric(
                 value=jnp.asarray([9, 10]), num_buckets=num_buckets),
     }
     audio_metrics = {
-        'audio':
+        "audio":
             AudioMetric(value=jnp.asarray([1, 5]), sample_rate=sample_rate),
-        'audio2':
+        "audio2":
             AudioMetric(value=jnp.asarray([1, 5]), sample_rate=sample_rate + 2),
     }
     text_metrics = {
-        'text': TextMetric(value='hello'),
+        "text": TextMetric(value="hello"),
     }
     hparam_metrics = {
-        'lr': HyperParamMetric(value=0.01),
+        "lr": HyperParamMetric(value=0.01),
     }
     summary_metrics = {
-        'summary':
-            SummaryMetric(value=jnp.asarray([2, 3, 10]), metadata='some info'),
-        'summary2':
+        "summary":
+            SummaryMetric(value=jnp.asarray([2, 3, 10]), metadata="some info"),
+        "summary2":
             SummaryMetric(value=jnp.asarray([2, 3, 10]), metadata=5),
     }
     metrics = {
@@ -154,7 +162,7 @@ class MetricWriterTest(absltest.TestCase):
         **summary_metrics,
     }
     metrics = {k: m.compute_value() for k, m in metrics.items()}
-    clu.metric_writers.utils.write_values(writer, step, metrics)
+    utils.write_values(writer, step, metrics)
 
     writer.write_scalars.assert_called_once_with(
         step, {k: m.compute() for k, m in scalar_metrics.items()})
@@ -172,8 +180,16 @@ class MetricWriterTest(absltest.TestCase):
     writer.write_summaries.assert_called_with(
         step,
         ONEOF(_to_list_of_dicts(_to_summary(summary_metrics))),
-        metadata=ONEOF(['some info', 5]))
+        metadata=ONEOF(["some info", 5]))
 
 
-if __name__ == '__main__':
+  def test_create_default_writer_summary_writer_is_added(self):
+    writer = utils.create_default_writer(
+        logdir=self.get_temp_dir(), asynchronous=False)
+    self.assertTrue(any(isinstance(w, SummaryWriter) for w in writer._writers))
+    writer = utils.create_default_writer(logdir=None, asynchronous=False)
+    self.assertFalse(any(isinstance(w, SummaryWriter) for w in writer._writers))
+
+
+if __name__ == "__main__":
   absltest.main()
