@@ -64,7 +64,7 @@ FLAGS = flags.FLAGS
 
 
 def create_default_writer(
-    logdir: Optional[str] = None,
+    logdir: str,
     *,
     just_logging: bool = False,
     asynchronous: bool = True) -> MetricWriter:
@@ -74,8 +74,7 @@ def create_default_writer(
   ends (logging, TF summaries etc.).
 
   Args:
-    logdir: Logging dir to use for TF summary files. If empty/None will the
-      returned writer will not write TF summary files.
+    logdir: Logging dir to use for TF summary files.
     just_logging: If True only use a LoggingWriter. This is useful in multi-host
       setups when only the first host should write metrics and all other hosts
       should only write to their own logs.
@@ -91,9 +90,7 @@ def create_default_writer(
       return AsyncWriter(LoggingWriter())
     else:
       return LoggingWriter()
-  writers = [LoggingWriter()]
-  if logdir is None:
-    writers.append(SummaryWriter(logdir))
+  writers = [LoggingWriter(), SummaryWriter(logdir)]
   if asynchronous:
     return AsyncMultiWriter(writers)
   return MultiWriter(writers)
