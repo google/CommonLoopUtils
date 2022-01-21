@@ -220,11 +220,17 @@ def get_read_instruction_for_host(
   if _use_split_info:
     if dataset_info is None:
       split_infos = {
-          split: tfds.core.SplitInfo(
-              name=split,
-              shard_lengths=[num_examples],
-              num_bytes=0,
-          ),
+          split:
+              tfds.core.SplitInfo(
+                  name=split,
+                  shard_lengths=[num_examples],
+                  num_bytes=0,
+                  filename_template=tfds.core.ShardedFileTemplate(
+                      dataset_name="dummy",
+                      data_dir=tfds.core.as_path("/dummy"),
+                      filetype_suffix=None,
+                      split=split),
+              ),
       }
     else:
       split_infos = dataset_info.splits

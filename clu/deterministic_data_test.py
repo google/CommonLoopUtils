@@ -17,7 +17,7 @@ import dataclasses
 import itertools
 import math
 
-from typing import Dict
+from typing import Dict, List
 from unittest import mock
 
 from absl.testing import parameterized
@@ -31,6 +31,19 @@ _use_split_info = version.parse("4.4.0") < version.parse(
     tfds.version.__version__)
 
 
+def _create_split_info(split: str,
+                       shard_lengths: List[int]) -> tfds.core.SplitInfo:
+  return tfds.core.SplitInfo(
+      name=split,
+      shard_lengths=shard_lengths,
+      num_bytes=0,
+      filename_template=tfds.core.ShardedFileTemplate(
+          dataset_name="dummy",
+          split=split,
+          data_dir=tfds.core.as_path("/dummy"),
+          filetype_suffix=None))
+
+
 @dataclasses.dataclass
 class MyDatasetBuilder:
 
@@ -41,7 +54,7 @@ class MyDatasetBuilder:
     del shuffle_files, read_config, decoders
     if _use_split_info:
       split_infos = {
-          k: tfds.core.SplitInfo(name=k, shard_lengths=[v], num_bytes=0)
+          k: _create_split_info(split=k, shard_lengths=[v])
           for k, v in self.name2len.items()
       }
       instructions = split.to_absolute(split_infos)
@@ -61,8 +74,10 @@ class FakeDatasetInfo:
   @property
   def splits(self):
     return {
-        "train": tfds.core.SplitInfo("train", [self.train_size], 0),
-        "test": tfds.core.SplitInfo("test", [self.test_size], 0)
+        "train":
+            _create_split_info(split="train", shard_lengths=[self.train_size]),
+        "test":
+            _create_split_info(split="test", shard_lengths=[self.test_size])
     }
 
 
@@ -97,11 +112,8 @@ class DeterministicDataTest(tf.test.TestCase, parameterized.TestCase):
         drop_remainder=drop_remainder)
     if _use_split_info:
       split_infos = {
-          "test": tfds.core.SplitInfo(
-              name="test",
-              shard_lengths=[9],
-              num_bytes=0,
-          )}
+          "test": _create_split_info(split="test", shard_lengths=[9])
+      }
     else:
       split_infos = {"test": 9}
     self.assertEqual(
@@ -262,9 +274,8 @@ class DeterministicDataTest(tf.test.TestCase, parameterized.TestCase):
     dataset = dataset.filter(lambda x: True)
     dataset_builder.as_dataset.return_value = dataset
     batch_dims = (2, 5)
-    with self.assertRaisesRegex(
-        ValueError,
-        r"^Cannot determine dataset cardinality."):
+    with self.assertRaisesRegex(ValueError,
+                                r"^Cannot determine dataset cardinality."):
       deterministic_data.create_dataset(
           dataset_builder,
           split="(ignored)",
@@ -290,9 +301,12 @@ class DeterministicDataTest(tf.test.TestCase, parameterized.TestCase):
         next(iter(padded_dataset.batch(20))))
 
   def test_pad_nested_dataset(self):
-    dataset = tf.data.Dataset.from_tensor_slices(
-        {"x": {"z": (tf.ones((12, 10)), tf.ones(12))},
-         "y": tf.ones((12, 4))})
+    dataset = tf.data.Dataset.from_tensor_slices({
+        "x": {
+            "z": (tf.ones((12, 10)), tf.ones(12))
+        },
+        "y": tf.ones((12, 4))
+    })
 
     def expected(*dims):
       return tf.concat([tf.ones((12,) + dims), tf.zeros((8,) + dims)], axis=0)
@@ -300,10 +314,14 @@ class DeterministicDataTest(tf.test.TestCase, parameterized.TestCase):
     padded_dataset = deterministic_data.pad_dataset(
         dataset, batch_dims=[20], pad_up_to_batches=2, cardinality=12)
     self.assertAllClose(
-        {"x": {"z": (expected(10), expected())},
-         "y": expected(4),
-         "mask": tf.concat([tf.ones(12, bool), tf.zeros(8, bool)], axis=0)},
-        next(iter(padded_dataset.batch(20))))
+        {
+            "x": {
+                "z": (expected(10), expected())
+            },
+            "y": expected(4),
+            "mask": tf.concat(
+                [tf.ones(12, bool), tf.zeros(8, bool)], axis=0)
+        }, next(iter(padded_dataset.batch(20))))
 
   @parameterized.parameters(*itertools.product(range(20), range(1, 4)))
   def test_same_cardinality_on_all_hosts(self, num_examples: int,
