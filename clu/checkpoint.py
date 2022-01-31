@@ -50,7 +50,7 @@ Loading the model e.g. in a Colab:
   state_dict = checkpoint.load_state_dict(base_directory)
   params = state_dict['optimizer']['target']['params']
   module = mnist_lib.MyArchitecture.partial(num_classes=10)
-  model = flax.nn.Model(module, params)
+  model = flax.deprecated.nn.Model(module, params)
 """
 
 import collections
@@ -88,7 +88,7 @@ def load_state_dict(base_directory) -> Dict[str, Any]:
     data = checkpoint.load_state_dict(base_directory)
     params = data['optimizer']['target']['params']
     module = mnist_lib.MyArchitecture.partial(num_classes=10)
-    model = flax.nn.Model(module, params)
+    model = flax.deprecated.nn.Model(module, params)
 
   Args:
     base_directory: Directory from which the checkpoints should be restored. See
