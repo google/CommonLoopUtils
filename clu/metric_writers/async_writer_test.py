@@ -64,6 +64,13 @@ class AsyncWriterTest(tf.test.TestCase):
     self.sync_writer.write_images.assert_called_with(4,
                                                      {"input_images": mock.ANY})
 
+  def test_write_videos(self):
+    videos = np.zeros((2, 4, 28, 28, 3))
+    self.writer.write_videos(4, {"input_videos": videos})
+    self.writer.flush()
+    self.sync_writer.write_videos.assert_called_with(4,
+                                                     {"input_videos": mock.ANY})
+
   def test_write_texts(self):
     self.writer.write_texts(4, {"samples": "bla"})
     self.writer.flush()

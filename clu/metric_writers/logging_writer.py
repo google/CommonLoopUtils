@@ -48,6 +48,10 @@ class LoggingWriter(interface.MetricWriter):
     logging.info("%s[%d] Got images: %s.", self._prefix, step,
                  {k: v.shape for k, v in images.items()})
 
+  def write_videos(self, step: int, videos: Mapping[str, Array]):
+    logging.info("%s[%d] Got videos: %s.", self._prefix, step,
+                 {k: v.shape for k, v in videos.items()})
+
   def write_audios(
       self, step: int, audios: Mapping[str, Array], *, sample_rate: int):
     logging.info("%s[%d] Got audios: %s.", self._prefix, step,

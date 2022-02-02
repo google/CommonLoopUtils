@@ -19,6 +19,7 @@ TorchTensorboardWriter instead.
 """
 
 from typing import Any, Mapping, Optional
+from absl import logging
 
 
 from clu.internal import utils
@@ -60,6 +61,11 @@ class SummaryWriter(interface.MetricWriter):
         if len(value.shape) == 3:
           value = value[None]
         tf.summary.image(key, value, step=step, max_outputs=value.shape[0])
+
+  def write_videos(self, step: int, videos: Mapping[str, Array]):
+    logging.log_first_n(
+        logging.WARNING,
+        "SummaryWriter does not support writing videos.", 1)
 
   def write_audios(
       self, step: int, audios: Mapping[str, Array], *, sample_rate: int):

@@ -53,6 +53,11 @@ class TorchTensorboardWriter(interface.MetricWriter):
     for key, value in images.items():
       self._writer.add_image(key, value, global_step=step, dataformats="HWC")
 
+  def write_videos(self, step: int, videos: Mapping[str, Array]):
+    logging.log_first_n(
+        logging.WARNING,
+        "TorchTensorBoardWriter does not support writing videos.", 1)
+
   def write_audios(
       self, step: int, audios: Mapping[str, Array], *, sample_rate: int):
     for key, value in audios.items():

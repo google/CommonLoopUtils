@@ -79,6 +79,27 @@ class MetricWriter(abc.ABC):
     """
 
   @abc.abstractmethod
+  def write_videos(self, step: int, videos: Mapping[str, Array]):
+    """Write videos for the step.
+
+    Warning: Logging only.
+    Not all MetricWriter implementation support writing videos!
+
+    Consecutive calls to this method can provide different sets of videos.
+    Repeated writes for the same video key at the same step are not allowed.
+
+
+    Args:
+      step: Step at which the videos occurred.
+      videos: Mapping from video key to videos. videos should have the shape
+        [N, T, H, W, C] or [T, H, W, C], where T is time, H is the height,
+        W is the width and C the number of channels (1 or 3). N is the number
+        of videos that will be written. Video dimensions can differ between
+        different video keys but not between different steps for the same
+        video key.
+    """
+
+  @abc.abstractmethod
   def write_audios(
       self, step: int, audios: Mapping[str, Array], *, sample_rate: int):
     """Write audios for the step.

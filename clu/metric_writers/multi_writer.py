@@ -43,6 +43,10 @@ class MultiWriter(interface.MetricWriter):
     for w in self._writers:
       w.write_images(step, images)
 
+  def write_videos(self, step: int, videos: Mapping[str, Array]):
+    for w in self._writers:
+      w.write_videos(step, videos)
+
   def write_audios(
       self, step: int, audios: Mapping[str, Array], *, sample_rate: int):
     for w in self._writers:

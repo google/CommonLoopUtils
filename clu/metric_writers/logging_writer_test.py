@@ -41,6 +41,14 @@ class LoggingWriterTest(tf.test.TestCase):
         logs.output,
         ["INFO:absl:[4] Got images: {'input_images': (2, 28, 28, 3)}."])
 
+  def test_write_videos(self):
+    videos = np.zeros((2, 4, 28, 28, 3))
+    with self.assertLogs(level="INFO") as logs:
+      self.writer.write_videos(4, {"input_videos": videos})
+    self.assertEqual(
+        logs.output,
+        ["INFO:absl:[4] Got videos: {'input_videos': (2, 4, 28, 28, 3)}."])
+
   def test_write_texts(self):
     with self.assertLogs(level="INFO") as logs:
       self.writer.write_texts(4, {"samples": "bla"})
