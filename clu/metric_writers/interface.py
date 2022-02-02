@@ -78,7 +78,6 @@ class MetricWriter(abc.ABC):
         not between different steps for the same image key.
     """
 
-  @abc.abstractmethod
   def write_videos(self, step: int, videos: Mapping[str, Array]):
     """Write videos for the step.
 
@@ -98,6 +97,7 @@ class MetricWriter(abc.ABC):
         different video keys but not between different steps for the same
         video key.
     """
+    raise NotImplementedError()
 
   @abc.abstractmethod
   def write_audios(
