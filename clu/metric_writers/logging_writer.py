@@ -27,14 +27,17 @@ Scalar = interface.Scalar
 class LoggingWriter(interface.MetricWriter):
   """MetricWriter that writes all values to INFO log."""
 
-  def __init__(self, prefix=""):
-    self._prefix = prefix
+  def __init__(self, collection: Optional[str] = None):
+    if collection:
+      self._collection_str = f" collection={collection}"
+    else:
+      self._collection_str = ""
 
   def write_summaries(
       self, step: int,
       values: Mapping[str, Array],
       metadata: Optional[Mapping[str, Any]] = None):
-    logging.info("%s[%d] Got raw tensors: %s.", self._prefix, step,
+    logging.info("[%d]%s Got raw tensors: %s.", step, self._collection_str,
                  {k: v.shape for k, v in values.items()})
 
   def write_scalars(self, step: int, scalars: Mapping[str, Scalar]):
@@ -42,23 +45,23 @@ class LoggingWriter(interface.MetricWriter):
         f"{k}={v:.6f}" if isinstance(v, float) else f"{k}={v}"
         for k, v in sorted(scalars.items())
     ]
-    logging.info("%s[%d] %s", self._prefix, step, ", ".join(values))
+    logging.info("[%d]%s %s", step, self._collection_str, ", ".join(values))
 
   def write_images(self, step: int, images: Mapping[str, Array]):
-    logging.info("%s[%d] Got images: %s.", self._prefix, step,
+    logging.info("[%d]%s Got images: %s.", step, self._collection_str,
                  {k: v.shape for k, v in images.items()})
 
   def write_videos(self, step: int, videos: Mapping[str, Array]):
-    logging.info("%s[%d] Got videos: %s.", self._prefix, step,
+    logging.info("[%d]%s Got videos: %s.", step, self._collection_str,
                  {k: v.shape for k, v in videos.items()})
 
   def write_audios(
       self, step: int, audios: Mapping[str, Array], *, sample_rate: int):
-    logging.info("%s[%d] Got audios: %s.", self._prefix, step,
+    logging.info("[%d]%s Got audios: %s.", step, self._collection_str,
                  {k: v.shape for k, v in audios.items()})
 
   def write_texts(self, step: int, texts: Mapping[str, str]):
-    logging.info("%s[%d] Got texts: %s.", self._prefix, step, texts)
+    logging.info("[%d]%s Got texts: %s.", step, self._collection_str, texts)
 
   def write_histograms(self,
                        step: int,
@@ -69,11 +72,12 @@ class LoggingWriter(interface.MetricWriter):
       histo, bins = _compute_histogram_as_tf(
           np.asarray(value), num_buckets=num_buckets.get(key))
       if histo is not None:
-        logging.info("%s[%d] Histogram for %r = {%s}", self._prefix, step, key,
+        logging.info("[%d]%s Histogram for %r = {%s}", step,
+                     self._collection_str, key,
                      _get_histogram_as_string(histo, bins))
 
   def write_hparams(self, hparams: Mapping[str, Any]):
-    logging.info("%sHyperparameters: %s", self._prefix, hparams)
+    logging.info("[Hyperparameters]%s %s", self._collection_str, hparams)
 
   def flush(self):
     logging.flush()

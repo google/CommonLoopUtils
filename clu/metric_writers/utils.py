@@ -20,7 +20,8 @@ method of the writer depending on the type of the metric.
 """
 
 import collections
-from typing import Mapping, Optional, List, Tuple, Union
+import os
+from typing import List, Mapping, Optional, Tuple, Union
 
 from absl import flags
 from clu import values
@@ -92,7 +93,8 @@ def create_default_writer(
     logdir: Optional[str] = None,
     *,
     just_logging: bool = False,
-    asynchronous: bool = True) -> MultiWriter:
+    asynchronous: bool = True,
+    collection: Optional[str] = None) -> MultiWriter:
   """Create the default writer for the platform.
 
   On most platforms this will create a MultiWriter that writes to multiple back
@@ -108,17 +110,22 @@ def create_default_writer(
       default (None) will automatically determine if you # GOOGLE-INTERNAL have
     asynchronous: If True return an AsyncMultiWriter to not block when writing
       metrics.
+    collection: A string which, if provided, provides an indication that the
+      provided metrics should all be written to the same collection, or
+      grouping.
 
   Returns:
     A `MetricWriter` according to the platform and arguments.
   """
   if just_logging:
     if asynchronous:
-      return AsyncMultiWriter([LoggingWriter()])
+      return AsyncMultiWriter([LoggingWriter(collection=collection)])
     else:
-      return MultiWriter([LoggingWriter()])
-  writers = [LoggingWriter()]
+      return MultiWriter([LoggingWriter(collection=collection)])
+  writers = [LoggingWriter(collection=collection)]
   if logdir is not None:
+    if collection is not None:
+      logdir = os.path.join(logdir, collection)
     writers.append(SummaryWriter(logdir))
   if asynchronous:
     return AsyncMultiWriter(writers)

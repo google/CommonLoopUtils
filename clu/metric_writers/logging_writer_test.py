@@ -84,11 +84,11 @@ class LoggingWriterTest(tf.test.TestCase):
     with self.assertLogs(level="INFO") as logs:
       self.writer.write_hparams({"learning_rate": 0.1, "batch_size": 128})
     self.assertEqual(logs.output, [
-        "INFO:absl:Hyperparameters: {'learning_rate': 0.1, 'batch_size': 128}"
+        "INFO:absl:[Hyperparameters] {'learning_rate': 0.1, 'batch_size': 128}"
     ])
 
-  def test_prefix(self):
-    writer = logging_writer.LoggingWriter(prefix="Train: ")
+  def test_collection(self):
+    writer = logging_writer.LoggingWriter(collection="train")
     with self.assertLogs(level="INFO") as logs:
       writer.write_scalars(0, {"a": 3, "b": 0.15})
       writer.write_images(4, {"input_images": np.zeros((2, 28, 28, 3))})
@@ -104,11 +104,11 @@ class LoggingWriterTest(tf.test.TestCase):
       writer.write_hparams({"learning_rate": 0.1})
 
     self.assertEqual(logs.output, [
-        "INFO:absl:Train: [0] a=3, b=0.150000",
-        "INFO:absl:Train: [4] Got images: {'input_images': (2, 28, 28, 3)}.",
-        "INFO:absl:Train: [4] Got texts: {'samples': 'bla'}.",
-        "INFO:absl:Train: [4] Histogram for 'a' = {[-0.1, 0.1): 1, [0.1, 0.3]: 2}",
-        "INFO:absl:Train: Hyperparameters: {'learning_rate': 0.1}",
+        "INFO:absl:[0] collection=train a=3, b=0.150000",
+        "INFO:absl:[4] collection=train Got images: {'input_images': (2, 28, 28, 3)}.",
+        "INFO:absl:[4] collection=train Got texts: {'samples': 'bla'}.",
+        "INFO:absl:[4] collection=train Histogram for 'a' = {[-0.1, 0.1): 1, [0.1, 0.3]: 2}",
+        "INFO:absl:[Hyperparameters] collection=train {'learning_rate': 0.1}",
     ])
 
 
