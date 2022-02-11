@@ -120,8 +120,27 @@ class ReportProgressTest(tf.test.TestCase, parameterized.TestCase):
     with self.assertLogs(level="INFO") as logs:
       self.assertTrue(hook(2))
     self.assertEqual(logs.output, [
-        "INFO:absl:Setting work unit notes: 0.2 steps/s, 20.0% (2/10), ETA: 0m"
-        " (0m : 50.0% test1, 25.0% test2)"
+        ("INFO:absl:Setting work unit notes: 0.2 steps/s, 20.0% (2/10), ETA: 0m"
+         " (0m : 50.0% test1, 25.0% test2)")
+    ])
+
+  def test_transform_message(self):
+    hook = periodic_actions.ReportProgress(
+        every_steps=4, every_secs=None, num_train_steps=10,
+        transform_message=lambda message: f"{message} -- Foo Bar")
+    t = time.time()
+    with self.assertLogs(level="INFO") as logs:
+      hook(1, t)
+      t += 0.11
+      hook(2, t)
+      t += 0.13
+      hook(3, t)
+      t += 0.12
+      hook(4, t)
+    # We did 1 step every 0.12s => 8.333 steps/s.
+    self.assertEqual(logs.output, [
+        ("INFO:absl:Setting work unit notes: "
+         "8.3 steps/s, 40.0% (4/10), ETA: 0m -- Foo Bar")
     ])
 
 

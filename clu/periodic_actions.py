@@ -168,7 +168,8 @@ class ReportProgress(PeriodicAction):
                writer: Optional[MetricWriter] = None,
                every_steps: Optional[int] = None,
                every_secs: Optional[float] = 60.0,
-               on_steps: Optional[Iterable[int]] = None):
+               on_steps: Optional[Iterable[int]] = None,
+               transform_message: Optional[Callable[[str], str]] = None):
     """Creates a new ReportProgress hook.
 
     Warning: The progress and the reported steps_per_sec are estimates. We
@@ -182,7 +183,11 @@ class ReportProgress(PeriodicAction):
       every_steps: How often to report the progress in number of training steps.
       every_secs: How often to report progress as time interval.
       on_steps: Report the progress on these training steps.
+      transform_message: Optional callable to change the message before it is
+        added to XManager. Use to add custom information.
     """
+    if transform_message is None:
+      transform_message = lambda x: x  # Default to identity
     on_steps = set(on_steps or [])
     if num_train_steps is not None:
       on_steps.add(num_train_steps)
@@ -196,6 +201,7 @@ class ReportProgress(PeriodicAction):
     self._waiting_for_part = collections.defaultdict(queue.Queue)
     self._time_per_part = collections.defaultdict(float)
     self._t0 = time.time()
+    self._transform_message = transform_message
     # Using max_worker=1 guarantees that the calls to _wait_jax_async_dispatch()
     # happen sequentially.
     self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
@@ -218,7 +224,7 @@ class ReportProgress(PeriodicAction):
           f"{100 * dt / total:.1f}% {name}"
           for name, dt in sorted(self._time_per_part.items())))
     # This should be relatively cheap so we can do it in the same main thread.
-    platform.work_unit().set_notes(message)
+    platform.work_unit().set_notes(self._transform_message(message))
     if self._writer is not None:
       self._writer.write_scalars(step, {"steps_per_sec": steps_per_sec})
 
@@ -415,7 +421,7 @@ class PeriodicCallback(PeriodicAction):
                every_steps: Optional[int] = None,
                every_secs: Optional[float] = None,
                on_steps: Optional[Iterable[int]] = None,
-               callback_fn: Callable,
+               callback_fn: Callable,  # pylint: disable=g-bare-generic
                execute_async: bool = False,
                pass_step_and_time: bool = True):
     """Initializes a new periodic Callback action.
