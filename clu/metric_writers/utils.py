@@ -21,6 +21,7 @@ method of the writer depending on the type of the metric.
 
 import collections
 import os
+import re
 from typing import List, Mapping, Optional, Tuple, Union
 
 from absl import flags
