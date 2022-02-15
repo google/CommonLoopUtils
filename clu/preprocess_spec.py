@@ -233,7 +233,7 @@ def _parse_single_preprocess_op(
     expr = ast.parse(spec, mode="eval").body  # pytype: disable=attribute-error
   except SyntaxError:
     raise ValueError(f"{spec!r} is not a valid preprocess op spec.")
-  op_class = _get_op_class(expr, available_ops)
+  op_class = _get_op_class(expr, available_ops)  # pytype: disable=wrong-arg-types
 
   # Simple case without arguments.
   if isinstance(expr, ast.Name):
