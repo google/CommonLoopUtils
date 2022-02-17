@@ -35,12 +35,12 @@ SNT_CONV2D_PARAMETER_OVERVIEW = """+----------+--------------+------+
 +----------+--------------+------+
 Total: 56"""
 
-SNT_CONV2D_PARAMETER_OVERVIEW_WITH_STATS = """+----------+--------------+------+---------+-------+
-| Name     | Shape        | Size | Mean    | Std   |
-+----------+--------------+------+---------+-------+
-| conv/b:0 | (2,)         | 2    | 0.0     | 0.0   |
-| conv/w:0 | (3, 3, 3, 2) | 54   | -0.0127 | 0.157 |
-+----------+--------------+------+---------+-------+
+SNT_CONV2D_PARAMETER_OVERVIEW_WITH_STATS = """+----------+--------------+------+------+-----+
+| Name     | Shape        | Size | Mean | Std |
++----------+--------------+------+------+-----+
+| conv/b:0 | (2,)         | 2    | 1.0  | 0.0 |
+| conv/w:0 | (3, 3, 3, 2) | 54   | 1.0  | 0.0 |
++----------+--------------+------+------+-----+
 Total: 56"""
 
 FLAX_CONV2D_PARAMETER_OVERVIEW = """+-------------+--------------+------+
@@ -51,20 +51,20 @@ FLAX_CONV2D_PARAMETER_OVERVIEW = """+-------------+--------------+------+
 +-------------+--------------+------+
 Total: 56"""
 
-FLAX_CONV2D_PARAMETER_OVERVIEW_WITH_STATS = """+-------------+--------------+------+--------+-------+
-| Name        | Shape        | Size | Mean   | Std   |
-+-------------+--------------+------+--------+-------+
-| conv/bias   | (2,)         | 2    | 0.0    | 0.0   |
-| conv/kernel | (3, 3, 3, 2) | 54   | 0.0562 | 0.188 |
-+-------------+--------------+------+--------+-------+
+FLAX_CONV2D_PARAMETER_OVERVIEW_WITH_STATS = """+-------------+--------------+------+------+-----+
+| Name        | Shape        | Size | Mean | Std |
++-------------+--------------+------+------+-----+
+| conv/bias   | (2,)         | 2    | 1.0  | 0.0 |
+| conv/kernel | (3, 3, 3, 2) | 54   | 1.0  | 0.0 |
++-------------+--------------+------+------+-----+
 Total: 56"""
 
-FLAX_CONV2D_MAPPING_PARAMETER_OVERVIEW_WITH_STATS = """+--------------------+--------------+------+--------+-------+
-| Name               | Shape        | Size | Mean   | Std   |
-+--------------------+--------------+------+--------+-------+
-| params/conv/bias   | (2,)         | 2    | 0.0    | 0.0   |
-| params/conv/kernel | (3, 3, 3, 2) | 54   | 0.0562 | 0.188 |
-+--------------------+--------------+------+--------+-------+
+FLAX_CONV2D_MAPPING_PARAMETER_OVERVIEW_WITH_STATS = """+--------------------+--------------+------+------+-----+
+| Name               | Shape        | Size | Mean | Std |
++--------------------+--------------+------+------+-----+
+| params/conv/bias   | (2,)         | 2    | 1.0  | 0.0 |
+| params/conv/kernel | (3, 3, 3, 2) | 54   | 1.0  | 0.0 |
++--------------------+--------------+------+------+-----+
 Total: 56"""
 
 
@@ -117,6 +117,8 @@ class TfParameterOverviewTest(tf.test.TestCase):
     # Weights of a 2D convolution with 2 filters..
     module.conv = snt.Conv2D(output_channels=2, kernel_shape=3, name="conv")
     module.conv(tf.ones((2, 5, 5, 3)))  # 3 * 3^2 * 2 = 56 parameters
+    for v in module.variables:
+      v.assign(tf.ones_like(v))
     self.assertEqual(
         SNT_CONV2D_PARAMETER_OVERVIEW,
         parameter_overview.get_parameter_overview(module, include_stats=False))
@@ -152,15 +154,14 @@ class JaxParameterOverviewTest(tf.test.TestCase):
     rng = jax.random.PRNGKey(42)
     # Weights of a 2D convolution with 2 filters..
     variables = CNN().init(rng, jnp.zeros((2, 5, 5, 3)))
+    variables = jax.tree_map(jnp.ones_like, variables)
     self.assertEqual(
         FLAX_CONV2D_PARAMETER_OVERVIEW,
         parameter_overview.get_parameter_overview(
             variables["params"], include_stats=False))
-    print(parameter_overview.get_parameter_overview(variables["params"]))
     self.assertEqual(
         FLAX_CONV2D_PARAMETER_OVERVIEW_WITH_STATS,
         parameter_overview.get_parameter_overview(variables["params"]))
-    print(parameter_overview.get_parameter_overview(variables))
     self.assertEqual(
         FLAX_CONV2D_MAPPING_PARAMETER_OVERVIEW_WITH_STATS,
         parameter_overview.get_parameter_overview(variables))
