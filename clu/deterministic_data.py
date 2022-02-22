@@ -156,6 +156,23 @@ def _shard_read_instruction(
       unit="abs")
 
 
+_DEPRECATE_MSG = """
+`get_read_instruction_for_host` is DEPRECATED.
+
+Migration instruction: Use `tfds.split_for_jax_process` which is simpler
+and nativelly supported by TFDS.
+
+```
+split = tfds.split_for_jax_process('train[75%:]', drop_remainder=True)
+
+ds = tfds.load('my_dataset', split=split)
+```
+
+See: https://www.tensorflow.org/datasets/splits#tfdseven_splits_multi-host_training
+
+"""
+
+
 def get_read_instruction_for_host(
     split: str,
     num_examples: Optional[int] = None,
@@ -167,6 +184,10 @@ def get_read_instruction_for_host(
     remainder_options: RemainderOptions = RemainderOptions.DROP
 ) -> tfds.core.ReadInstruction:
   """Returns a `ReadInstruction` of the data ranges for this host.
+
+  `get_read_instruction_for_host` is DEPRECATED. Please use
+  `tfds.split_for_jax_process` or `tfds.even_split`. See:
+  https://www.tensorflow.org/datasets/splits#tfdseven_splits_multi-host_training
 
   In a distributed setting all hosts should get the same number of examples.
   This can exclude a few (< host_count) examples.
@@ -194,6 +215,8 @@ def get_read_instruction_for_host(
     drop_remainder: Deprecated - use remainder_options instead.
     remainder_options: The options to handle the remaining examples.
   """
+  logging.warning(_DEPRECATE_MSG)
+
   if num_examples is not None:
     logging.warning(
         "`num_examples` is deprecated. Please pass `dataset_info` instead.")
