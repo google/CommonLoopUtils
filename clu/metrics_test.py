@@ -181,6 +181,22 @@ class MetricsTest(tf.test.TestCase, parameterized.TestCase):
         expected_result)
 
   @parameterized.named_parameters(
+      ("int", 2, 2, int),
+      ("float", 3.1, 3.1, float),
+      ("0d_int", [2], 2, int),
+      ("0d_float", [3.1], 3.1, float),
+  )
+  def test_compute_value(self, values, expected_result, dtype):
+    values = jnp.array(values, dtype=dtype)
+    self.assertAllClose(
+        metrics.LastValue(values).compute_value().value, expected_result)
+
+  def test_compute_value_error(self):
+    values = jnp.array([1, 2])
+    with self.assertRaisesRegex(ValueError, r"^Result is not a scalar"):
+      metrics.LastValue(values).compute_value()
+
+  @parameterized.named_parameters(
       ("Average", metrics.Average),
       ("Std", metrics.Std),
       ("LastValue", metrics.LastValue),

@@ -67,6 +67,7 @@ import clu.values
 import flax
 import jax
 import jax.numpy as jnp
+import numpy as np
 
 # TODO(b/200953513): Migrate away from logging imports (on module level)
 #                    to logging the actual usage. See b/200953513.
@@ -138,7 +139,17 @@ class Metric:
     raise NotImplementedError("Must override compute()")
 
   def compute_value(self) -> clu.values.Value:
-    return clu.values.Scalar(self.compute())
+    """Wraps compute() and returns a values.Value."""
+    value = self.compute()
+    if isinstance(value, (jnp.ndarray, np.ndarray)):
+      if value.ndim == 0 or value.size <= 1:
+        if jnp.issubdtype(value.dtype, jnp.floating):
+          value = float(value)
+        elif jnp.issubdtype(value.dtype, jnp.integer):
+          value = int(value)
+      else:
+        raise ValueError(f"Result is not a scalar. Computed value: {value}")
+    return clu.values.Scalar(value)
 
   def reduce(self) -> "Metric":
     """Reduces the metric along it first axis by calling `merge()`."""
