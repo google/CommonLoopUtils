@@ -58,7 +58,7 @@ Synopsis:
     return metrics.compute()
 """
 
-from typing import Any, Callable, Dict, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, Optional, Sequence, Tuple, Type
 
 from absl import logging
 
@@ -335,7 +335,7 @@ class Collection:
   _reduction_counter: _ReductionCounter
 
   @classmethod
-  def create(cls, **metrics: Dict[str, Metric]):
+  def create(cls, **metrics: Type[Metric]) -> Type["Collection"]:
     """Handy short-cut to define a `Collection` inline.
 
     Instead declaring a `Collection` dataclass:
@@ -348,14 +348,45 @@ class Collection:
 
       MyMetrics = metrics.Collection.create(accuracy=metrics.Accuracy)
 
+    To simulataneously create the class and initialize an instance use
+    `Collection.create_collection` instead.
+
     Args:
       **metrics: Names and metric classes to use include in the collection.
 
     Returns:
-      A Collection with provided `metrics`.
+      A subclass of Collection with fields defined by provided `metrics`.
     """
     return flax.struct.dataclass(
         type("_InlineCollection", (Collection,), {"__annotations__": metrics}))
+
+  @classmethod
+  def create_collection(cls, **metrics: Metric) -> "Collection":
+    """Creates a custom collection object with fields metrics.
+
+    This object will be an instance of custom subclass of `Collection` with
+    all fields in **metric declared as appropriate dataset fields. For example:
+
+       my_metrics = metrics.Collection.create_collection(
+            accuracy=metrics.Accuracy(0, 0))
+
+      is equivalent to:
+
+        @flax.struct.dataclass
+        class MyMetrics(metrics.Collection):
+          accuracy: metrics.Accuracy
+        my_metrics = MyMetrics(_ReductionCounter(jnp.array(1)),
+                               accuracy=metric.Accuracy(0, 0))
+
+    Args:
+      **metrics: metrics to incroporate into this object.
+
+    Returns:
+      An instance of Collection initialized with provided `metrics`
+    """
+    collection_class = cls.create(**{k: type(v) for k, v in metrics.items()})
+    counter = _ReductionCounter(jnp.array(1))
+    return collection_class(_reduction_counter=counter, **metrics)
 
   @classmethod
   def _from_model_output(cls, **kwargs) -> "Collection":
