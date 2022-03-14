@@ -268,8 +268,13 @@ class MetricsTest(tf.test.TestCase, parameterized.TestCase):
         accuracy=metrics.Accuracy.from_model_output(
             logits=jnp.array([[-1., 1.], [1., -1.]]),
             labels=jnp.array([0, 0])),  # i.e. 1st incorrect, 2nd correct)
-        loss=metrics.Average.from_model_output(jnp.array([0, 1, 2]))).compute()
-    self.assertAllClose(collection, {"accuracy": 0.5, "loss": 1})
+        loss=metrics.Average.from_model_output(jnp.array([0, 1, 2])))
+    self.assertAllClose(collection.compute(), {"accuracy": 0.5, "loss": 1})
+    self.assertAllClose(
+        {k: v.value for k, v in collection.compute_values().items()}, {
+            "accuracy": 0.5,
+            "loss": 1
+        })
 
   @parameterized.named_parameters(
       ("", False),

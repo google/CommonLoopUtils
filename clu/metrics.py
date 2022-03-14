@@ -312,6 +312,14 @@ class _ReductionCounter(Metric):
     return _ReductionCounter(self.value + other.value)
 
 
+def _check_reduction_counter_ndim(reduction_counter: _ReductionCounter):
+  ndim = reduction_counter.value.ndim
+  if ndim != 0:
+    raise ValueError(
+        f"Collection is still replicated (ndim={ndim}). Maybe you forgot to "
+        f"call a flax.jax_utils.unreplicate() or a Collections.reduce()?")
+
+
 @flax.struct.dataclass
 class Collection:
   """Updates a collection of `Metric` from model outputs.
@@ -447,13 +455,18 @@ class Collection:
 
   def compute(self) -> Dict[str, jnp.array]:
     """Computes metrics and returns them as Python numbers/lists."""
-    ndim = self._reduction_counter.value.ndim
-    if ndim != 0:
-      raise ValueError(
-          f"Collection is still replicated (ndim={ndim}). Maybe you forgot to "
-          f"call a flax.jax_utils.unreplicate() or a Collections.reduce()?")
+    _check_reduction_counter_ndim(self._reduction_counter)
     return {
         metric_name: metric.compute()
+        for metric_name, metric in vars(self).items()
+        if metric_name != "_reduction_counter"
+    }
+
+  def compute_values(self) -> Dict[str, clu.values.Value]:
+    """Computes metrics and returns them as clu.values.Value."""
+    _check_reduction_counter_ndim(self._reduction_counter)
+    return {
+        metric_name: metric.compute_value()
         for metric_name, metric in vars(self).items()
         if metric_name != "_reduction_counter"
     }
