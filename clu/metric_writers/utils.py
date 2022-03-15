@@ -22,7 +22,7 @@ method of the writer depending on the type of the metric.
 import collections
 import os
 import re
-from typing import List, Mapping, Optional, Tuple, Union
+from typing import Any, List, Mapping, Optional, Tuple, Union
 
 from absl import flags
 from clu import values
@@ -38,12 +38,12 @@ import numpy as np
 FLAGS = flags.FLAGS
 
 
-def _is_scalar(value):
+def _is_scalar(value: Any) -> bool:
   if isinstance(value, values.Scalar) or isinstance(value,
                                                     (int, float, np.number)):
     return True
   if isinstance(value, (np.ndarray, jnp.ndarray)):
-    return jnp.ndim(value) == 0
+    return value.ndim == 0 or value.size <= 1
   return False
 
 
