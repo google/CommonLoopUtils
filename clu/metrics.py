@@ -444,7 +444,7 @@ class Collection:
     })
 
   def compute(self) -> Dict[str, jnp.array]:
-    """Computes metrics and returns them as Python numbers/lists."""
+    """Returns a dictionary mapping metric field name to `Metric.compute()`."""
     _check_reduction_counter_ndim(self._reduction_counter)
     return {
         metric_name: metric.compute()
