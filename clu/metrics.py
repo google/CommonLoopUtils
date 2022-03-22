@@ -468,9 +468,9 @@ class Collection:
 
 @flax.struct.dataclass
 class LastValue(Metric):
-  """Keeps the last value.
+  """Keeps the last average batch value.
 
-  See also documentation of `Metric`.
+  This is useful to log values like the learning rate.
   """
 
   value: jnp.array
