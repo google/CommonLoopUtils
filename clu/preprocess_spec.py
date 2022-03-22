@@ -51,7 +51,10 @@ import typing_extensions
 # Feature dictionary. Arbitrary nested dictionary with string keys and
 # tf.Tensor as leaves.
 Tensor = Union[tf.Tensor, tf.RaggedTensor, tf.SparseTensor]
+# TFDS allows for nested `Features` ...
 Features = Dict[str, Union[Tensor, "Features"]]  # pytype: disable=not-supported-yet
+# ... but it's usually a better idea NOT to nest them. Also better fo PyType.
+FlatFeatures = Dict[str, Tensor]
 # Feature name for the random seed for tf.random.stateless_* ops.
 SEED_KEY = "seed"
 # Regex that finds upper case characters.
