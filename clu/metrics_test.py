@@ -127,10 +127,10 @@ class MetricsTest(tf.test.TestCase, parameterized.TestCase):
                                            *metric_list)
         metric = metric_stacked.reduce()
       else:
-        metric = None
+        metric = metric_class.empty()
         for model_output in model_outputs:
           update = metric_class.from_model_output(**model_output)
-          metric = update if metric is None else metric.merge(update)
+          metric = metric.merge(update)
       return metric.compute()
 
     return compute_metric
@@ -267,11 +267,10 @@ class MetricsTest(tf.test.TestCase, parameterized.TestCase):
   def test_collection_single(self, masked):
 
     def compute_collection(model_outputs):
-      collection = None
+      collection = Collection.empty()
       for model_output in model_outputs:
         update = Collection.single_from_model_output(**model_output)
-        collection = (
-            update if collection is None else collection.merge(update))
+        collection = collection.merge(update)
       return collection.compute()
 
     self.assertAllClose(

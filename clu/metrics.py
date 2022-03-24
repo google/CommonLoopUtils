@@ -41,21 +41,20 @@ Synopsis:
     loss: metrics.Average.from_output("loss")
     loss_std: metrics.Std.from_output("loss")
 
-  def eval_step(model, variables, inputs, labels):
+  def eval_step(ms, model, variables, inputs, labels):
     loss, logits = get_loss_and_logits(model, variables, inputs, labels)
-    return Metrics.gather_from_model_output(
-        loss=loss, logits=logits, labels=labels)
+    return ms.merge(Metrics.gather_from_model_output(
+        loss=loss, logits=logits, labels=labels))
 
   p_eval_step = jax.pmap(
       eval_step, axis_name="batch", static_broadcasted_argnums=0)
 
   def evaluate(model, p_variables, test_ds):
-    metrics = None
+    ms = flax.jax_utils.replicate(Metrics.empty())
     for inputs, labels in test_ds:
-      update = flax.jax_utils.unreplicate(
-          p_eval_step(model, p_variables, inputs, labels))
-      metrics = update if metrics is None else metrics.merge(update)
-    return metrics.compute()
+      ms = flax.jax_utils.unreplicate(
+          p_eval_step(ms, model, p_variables, inputs, labels))
+    return ms.unreplicate().compute()
 """
 
 from typing import Any, Callable, Dict, Optional, Sequence, Tuple, Type
@@ -136,6 +135,11 @@ class Metric:
   def compute(self) -> jnp.array:
     """Computes final metrics from intermediate values."""
     raise NotImplementedError("Must override compute()")
+
+  @classmethod
+  def empty(cls) -> "Metric":
+    """Returns an empty instance (i.e. `.merge(Metric.empty())` is a no-op)."""
+    raise NotImplementedError("Must override empty()")
 
   def compute_value(self) -> clu.values.Value:
     """Wraps compute() and returns a values.Value."""
@@ -261,7 +265,16 @@ class CollectingMetric(Metric):
 
   values: Dict[str, jnp.array]
 
+  @classmethod
+  def empty(cls) -> "CollectingMetric":
+    return cls(values={})
+
   def merge(self, other: "CollectingMetric") -> "CollectingMetric":
+    # WARNING: This will trigger a recompile.
+    if other.values and not self.values:
+      return other
+    if self.values and not other.values:
+      return self
     return type(self)({
         name: jnp.concatenate((value, other.values[name]))
         for name, value in self.values.items()
@@ -297,6 +310,10 @@ class _ReductionCounter(Metric):
   """Pseudo metric that keeps track of the total number of `.merge()`."""
 
   value: jnp.array
+
+  @classmethod
+  def empty(cls):
+    return cls(value=jnp.array(1, jnp.int32))
 
   def merge(self, other: "_ReductionCounter") -> "_ReductionCounter":
     return _ReductionCounter(self.value + other.value)
@@ -385,6 +402,15 @@ class Collection:
     collection_class = cls.create(**{k: type(v) for k, v in metrics.items()})
     counter = _ReductionCounter(jnp.array(1))
     return collection_class(_reduction_counter=counter, **metrics)
+
+  @classmethod
+  def empty(cls) -> "Collection":
+    return cls(
+        _reduction_counter=_ReductionCounter(jnp.array(1)),
+        **{
+            metric_name: metric.empty()
+            for metric_name, metric in cls.__annotations__.items()
+        })
 
   @classmethod
   def _from_model_output(cls, **kwargs) -> "Collection":
@@ -476,6 +502,10 @@ class LastValue(Metric):
   value: jnp.array
 
   @classmethod
+  def empty(cls):
+    return cls(value=jnp.array(jnp.nan, jnp.float32))
+
+  @classmethod
   def from_model_output(cls,
                         value: jnp.array,
                         mask: Optional[jnp.array] = None,
@@ -510,6 +540,10 @@ class Average(Metric):
 
   total: jnp.array
   count: jnp.array
+
+  @classmethod
+  def empty(cls) -> Metric:
+    return cls(total=jnp.array(0, jnp.float32), count=jnp.array(0, jnp.int32))
 
   @classmethod
   def from_model_output(cls,
@@ -559,6 +593,12 @@ class Std(Metric):
   total: jnp.array
   sum_of_squares: jnp.array
   count: jnp.array
+
+  @classmethod
+  def empty(cls):
+    return cls(total=jnp.array(0, jnp.float32),
+               sum_of_squares=jnp.array(0, jnp.float32),
+               count=jnp.array(0, jnp.int32))
 
   @classmethod
   def from_model_output(cls,
