@@ -400,13 +400,13 @@ class Collection:
       An instance of Collection initialized with provided `metrics`
     """
     collection_class = cls.create(**{k: type(v) for k, v in metrics.items()})
-    counter = _ReductionCounter(jnp.array(1))
+    counter = _ReductionCounter(jnp.array(1, dtype=jnp.int32))
     return collection_class(_reduction_counter=counter, **metrics)
 
   @classmethod
   def empty(cls) -> "Collection":
     return cls(
-        _reduction_counter=_ReductionCounter(jnp.array(1)),
+        _reduction_counter=_ReductionCounter(jnp.array(1, dtype=jnp.int32)),
         **{
             metric_name: metric.empty()
             for metric_name, metric in cls.__annotations__.items()
@@ -416,7 +416,7 @@ class Collection:
   def _from_model_output(cls, **kwargs) -> "Collection":
     """Creates a `Collection` from model outputs."""
     return cls(
-        _reduction_counter=_ReductionCounter(jnp.array(1)),
+        _reduction_counter=_ReductionCounter(jnp.array(1, dtype=jnp.int32)),
         **{
             metric_name: metric.from_model_output(**kwargs)
             for metric_name, metric in cls.__annotations__.items()
@@ -568,8 +568,8 @@ class Average(Metric):
     utils.check_param(mask, dtype=bool, ndim=values.ndim)
     return cls(
         total=jnp.where(mask, values, jnp.zeros_like(values)).sum(),
-        count=jnp.where(mask, jnp.ones_like(values),
-                        jnp.zeros_like(values)).sum(),
+        count=jnp.where(mask, jnp.ones_like(values, dtype=jnp.int32),
+                        jnp.zeros_like(values, dtype=jnp.int32)).sum(),
     )
 
   def merge(self, other: "Average") -> "Average":
@@ -609,7 +609,7 @@ class Std(Metric):
       values = values[None]
     utils.check_param(values, ndim=1)
     if mask is None:
-      mask = jnp.ones(values.shape[0])
+      mask = jnp.ones(values.shape[0], dtype=jnp.int32)
     return cls(
         total=values.sum(),
         sum_of_squares=jnp.where(mask, values**2, jnp.zeros_like(values)).sum(),

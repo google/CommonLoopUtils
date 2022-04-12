@@ -19,6 +19,7 @@ import operator
 from unittest import mock
 
 from absl.testing import parameterized
+import chex
 from clu import metrics
 import flax
 import jax
@@ -46,10 +47,22 @@ class Collection(metrics.Collection):
   collecting_metric: metrics.CollectingMetric.from_outputs(("logits", "labels"))
 
 
+@flax.struct.dataclass
+class CollectionWithoutCollecting(metrics.Collection):
+  train_accuracy: metrics.Accuracy
+  train_loss_average: metrics.Average.from_output("loss")
+  train_loss_std: metrics.Std.from_output("loss")
+  learning_rate: metrics.LastValue.from_output("learning_rate")
+
+
 class MetricsTest(tf.test.TestCase, parameterized.TestCase):
 
   def setUp(self):
     super().setUp()
+
+    # Clear the trace counter
+    chex.clear_trace_counter()
+
     # Two batches of model output.
     self.model_outputs = (
         dict(
@@ -359,6 +372,24 @@ class MetricsTest(tf.test.TestCase, parameterized.TestCase):
         "logits": jnp.concatenate(logits),
         "loss": jnp.stack(loss),
     })
+
+  def test_metric_empty_types_doesnt_cause_retrace(self):
+
+    @jax.jit
+    @chex.assert_max_traces(n=1)
+    def merge_collection(model_output, collection):
+      update = CollectionWithoutCollecting.single_from_model_output(
+          **model_output)
+      return collection.merge(update)
+
+    # Metric will be initialized with a strong type
+    # Can only use non-collecting metrics as the shape of collecting
+    # metrics changes every iteration.
+    collection = CollectionWithoutCollecting.empty()
+    for model_output in self.model_outputs:
+      # The merged metric _should not_ have weak types
+      # If it does have a weak type the second call will cause a re-trace
+      collection = merge_collection(model_output, collection)
 
 
 if __name__ == "__main__":
