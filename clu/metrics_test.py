@@ -15,15 +15,16 @@
 """Tests for clu.metrics."""
 
 import functools
-import operator
 from unittest import mock
 
 from absl.testing import parameterized
 import chex
+from clu import asynclib
 from clu import metrics
 import flax
 import jax
 import jax.numpy as jnp
+import numpy as np
 import tensorflow as tf
 
 
@@ -32,8 +33,9 @@ class CollectingMetricAccuracy(
     metrics.CollectingMetric.from_outputs(("logits", "labels"))):
 
   def compute(self):
-    logits = self.values["logits"]
-    labels = self.values["labels"]
+    values = super().compute()
+    logits = values["logits"]
+    labels = values["labels"]
     assert logits.ndim == 2, logits.shape
     assert labels.ndim == 1, labels.shape
     return (logits.argmax(axis=-1) == labels).mean()
@@ -42,17 +44,13 @@ class CollectingMetricAccuracy(
 @flax.struct.dataclass
 class Collection(metrics.Collection):
   train_accuracy: metrics.Accuracy
-  collecting_metric_accuracy: CollectingMetricAccuracy
   learning_rate: metrics.LastValue.from_output("learning_rate")
-  collecting_metric: metrics.CollectingMetric.from_outputs(("logits", "labels"))
 
 
 @flax.struct.dataclass
-class CollectionWithoutCollecting(metrics.Collection):
+class CollectionMixed(metrics.Collection):
+  collecting_metric_accuracy: CollectingMetricAccuracy
   train_accuracy: metrics.Accuracy
-  train_loss_average: metrics.Average.from_output("loss")
-  train_loss_std: metrics.Std.from_output("loss")
-  learning_rate: metrics.LastValue.from_output("learning_rate")
 
 
 class MetricsTest(tf.test.TestCase, parameterized.TestCase):
@@ -87,29 +85,14 @@ class MetricsTest(tf.test.TestCase, parameterized.TestCase):
     self.model_outputs_masked = tuple(
         dict(mask=mask, **model_output)
         for mask, model_output in zip(masks, self.model_outputs))
-    def concat_outputs(name):
-      return jnp.concatenate(
-          [model_output[name] for model_output in self.model_outputs_masked])
 
     self.results = {
         "train_accuracy": 0.75,
         "learning_rate": 0.01,
-        "collecting_metric_accuracy": 0.75,
-        "collecting_metric": {
-            "labels": concat_outputs("labels"),
-            "logits": concat_outputs("logits"),
-        },
     }
     self.results_masked = {
         "train_accuracy": 0.5,
         "learning_rate": 0.01,
-        # Note: Our CollectingMetric does NOT collect the mask (the masked
-        # computation couldn't be jitted anyways).
-        "collecting_metric_accuracy": 0.75,
-        "collecting_metric": {
-            "labels": concat_outputs("labels"),
-            "logits": concat_outputs("logits"),
-        },
     }
     # Stack all values. Can for example be used in a pmap().
     self.model_outputs_stacked = jax.tree_multimap(
@@ -117,19 +100,19 @@ class MetricsTest(tf.test.TestCase, parameterized.TestCase):
     self.model_outputs_masked_stacked = jax.tree_multimap(
         lambda *args: jnp.stack(args), *self.model_outputs_masked)
 
-  def make_compute_metric(self, metric_class, reduce):
+  def make_compute_metric(self, metric_class, reduce, jit=True):
     """Returns a jitted function to compute metrics.
 
     Args:
       metric_class: Metric class to instantiate.
-      reduce: If set to `True`
+      reduce: If set to `True`.
+      jit: Whether the returned function should be jitted.
 
     Returns:
       A function that takes `model_outputs` (list of dictionaries of values) as
       an input and returns the value from `metric.compute()`.
     """
 
-    @jax.jit
     def compute_metric(model_outputs):
       if reduce:
         metric_list = [
@@ -146,6 +129,8 @@ class MetricsTest(tf.test.TestCase, parameterized.TestCase):
           metric = metric.merge(update)
       return metric.compute()
 
+    if jit:
+      compute_metric = jax.jit(compute_metric)
     return compute_metric
 
   def test_metric_reduce(self):
@@ -344,12 +329,12 @@ class MetricsTest(tf.test.TestCase, parameterized.TestCase):
 
   def test_collecting_metric(self):
     metric_class = metrics.CollectingMetric.from_outputs(("logits", "loss"))
-    logits = jnp.concatenate(
+    logits = np.concatenate(
         [model_output["logits"] for model_output in self.model_outputs])
-    loss = jnp.array(
+    loss = np.array(
         [model_output["loss"] for model_output in self.model_outputs])
     result = self.make_compute_metric(
-        metric_class, reduce=False)(
+        metric_class, reduce=False, jit=False)(
             self.model_outputs)
     self.assertAllClose(result, {
         "logits": logits,
@@ -357,20 +342,38 @@ class MetricsTest(tf.test.TestCase, parameterized.TestCase):
     })
 
   def test_collecting_metric_reduce(self):
-    metric_class = metrics.CollectingMetric.from_outputs(("logits", "loss"))
-    logits = functools.reduce(
-        operator.add,
-        ((model_output["logits"],) for model_output in self.model_outputs))
-    loss = functools.reduce(
-        operator.add,
-        ((model_output["loss"],) for model_output in self.model_outputs))
-    result = self.make_compute_metric(
-        metric_class, reduce=True)(
-            self.model_outputs)
-    # Expected : single tuple with concatenated elements.
+    metric_class = metrics.CollectingMetric.from_outputs(("value",))
+    metric = jax.jit(metric_class.from_model_output)(value=jnp.ones([8, 2, 4]))
+    reduced = metric.reduce()
+    self.assertAllClose(reduced.compute(), {"value": np.ones([16, 4])})
+
+  def test_collecting_metric_async(self):
+    metric = CollectingMetricAccuracy.empty()
+    pool = asynclib.Pool()
+    @pool
+    def merge(update):
+      nonlocal metric
+      metric = metric.merge(update)
+    for model_output in self.model_outputs:
+      merge(jax.jit(CollectingMetricAccuracy.from_model_output)(**model_output))
+    pool.join()
+    result = metric.compute()
+    self.assertAllClose(result, 0.75)
+
+  def test_collection_mixed_async(self):
+    metric = CollectionMixed.empty()
+    pool = asynclib.Pool()
+    @pool
+    def merge(update):
+      nonlocal metric
+      metric = metric.merge(update)
+    for model_output in self.model_outputs:
+      merge(jax.jit(CollectionMixed.single_from_model_output)(**model_output))
+    pool.join()
+    result = metric.compute()
     self.assertAllClose(result, {
-        "logits": jnp.concatenate(logits),
-        "loss": jnp.stack(loss),
+        "collecting_metric_accuracy": 0.75,
+        "train_accuracy": 0.75,
     })
 
   def test_metric_empty_types_doesnt_cause_retrace(self):
@@ -378,14 +381,14 @@ class MetricsTest(tf.test.TestCase, parameterized.TestCase):
     @jax.jit
     @chex.assert_max_traces(n=1)
     def merge_collection(model_output, collection):
-      update = CollectionWithoutCollecting.single_from_model_output(
+      update = Collection.single_from_model_output(
           **model_output)
       return collection.merge(update)
 
     # Metric will be initialized with a strong type
     # Can only use non-collecting metrics as the shape of collecting
     # metrics changes every iteration.
-    collection = CollectionWithoutCollecting.empty()
+    collection = Collection.empty()
     for model_output in self.model_outputs:
       # The merged metric _should not_ have weak types
       # If it does have a weak type the second call will cause a re-trace

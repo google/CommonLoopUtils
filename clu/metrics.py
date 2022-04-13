@@ -66,6 +66,7 @@ import clu.values
 import flax
 import jax
 import jax.numpy as jnp
+import numpy as np
 
 # TODO(b/200953513): Migrate away from logging imports (on module level)
 #                    to logging the actual usage. See b/200953513.
@@ -242,9 +243,10 @@ class Metric:
 class CollectingMetric(Metric):
   """A special metric that collects model outputs.
 
-  This metric keeps all the values and when metrics are `.merge()`-ed or
-  `.reduce()`-ed, their values are simply concatenated. Useful for implementing
-  metric computation in Python (e.g. using some external libraries).
+  This metric transfers arrays to host memory (converting to `np.ndarray`) for
+  later use in computations on CPU. The references to individual arrays are
+  stored in tuples, and a final call to `.compute()` concatenates these arrays.
+  If not needed, this final copy can be avoided by overriding `.compute()`.
 
   Note though that these metrics use much more memory and compute somewhat more
   slowly.
@@ -259,33 +261,60 @@ class CollectingMetric(Metric):
         metrics.CollectingMetric.from_outputs(("labels", "logits"))):
 
       def compute(self):
+        values = super().compute()
         return sklearn.metrics.average_precision_score(
-            self.values["labels"], self.values["logits"][:, 1])
+            values["labels"], values["logits"][:, 1])
+
+  Note that this metric causes a sync barrier when the data is transfered to
+  the host. But this can be avoided by using `asynclib`:
+
+    from clu import asynclib
+
+    def evaluate(params):
+      ms = MyCollection.empty()
+      pool = asynclib.Pool()
+
+      @pool
+      def merge(update):
+        nonlocal ms
+        ms = ms.merge(update)
+
+      for batch in eval_ds:
+        merge(eval_step(params, batch))
+
+      pool.join()
+      return ms.compute()
   """
 
-  values: Dict[str, jnp.array]
+  values: Dict[str, Tuple[np.ndarray, ...]]
 
   @classmethod
   def empty(cls) -> "CollectingMetric":
     return cls(values={})
 
   def merge(self, other: "CollectingMetric") -> "CollectingMetric":
-    # WARNING: This will trigger a recompile.
+    if any(isinstance(v, jax.core.Tracer) for v in self.values.values()):
+      raise RuntimeError(
+          "Tracer detected! CollectingMetric cannot be JIT compiled.")
     if other.values and not self.values:
       return other
     if self.values and not other.values:
       return self
-    return type(self)({
-        name: jnp.concatenate((value, other.values[name]))
-        for name, value in self.values.items()
-    })
+    return type(self)(
+        jax.tree_map(
+            np.asarray, {
+                name: (*value, *other.values[name])
+                for name, value in self.values.items()
+            }))
 
   def reduce(self) -> "CollectingMetric":
+    # Note that this is usually called from inside a `pmap()` via
+    # `Collection.gather_from_model_output()` so we concatenate using jnp.
     return type(self)(
         {name: jnp.concatenate(values) for name, values in self.values.items()})
 
-  def compute(self) -> Dict[str, Tuple[jnp.array]]:
-    return self.values
+  def compute(self) -> Dict[str, np.ndarray]:
+    return {k: np.concatenate(v) for k, v in self.values.items()}
 
   @classmethod
   def from_outputs(cls, names: Sequence[str]):
@@ -300,7 +329,7 @@ class CollectingMetric(Metric):
           value = jnp.array(value)
           # Can't jnp.concatenate() scalars, promote to shape=(1,) in that case.
           return value[None] if value.ndim == 0 else value
-        return cls({name: make_array(model_output[name]) for name in names})
+        return cls({name: (make_array(model_output[name]),) for name in names})
 
     return FromOutputs
 
