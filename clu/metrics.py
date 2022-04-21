@@ -243,6 +243,13 @@ class Metric:
 class CollectingMetric(Metric):
   """A special metric that collects model outputs.
 
+  This metric can NOT be used inside JIT-compiled eval steps (like the pattern
+  described in the pydoc of this module). Instead, you will need to call
+  `.merge()` in the Python evaluation loop that calls the compiled evaluation
+  step. Metric accumulation happens on the host memory. For an efficient use
+  of this metric that interleaves JAX computation with Python execution, see the
+  async snippet below.
+
   This metric transfers arrays to host memory (converting to `np.ndarray`) for
   later use in computations on CPU. The references to individual arrays are
   stored in tuples, and a final call to `.compute()` concatenates these arrays.
@@ -293,19 +300,19 @@ class CollectingMetric(Metric):
     return cls(values={})
 
   def merge(self, other: "CollectingMetric") -> "CollectingMetric":
-    if any(isinstance(v, jax.core.Tracer) for v in self.values.values()):
+    values = {
+        name: (*value, *other.values[name])
+        for name, value in self.values.items()
+    }
+    if any(
+        isinstance(vv, jax.core.Tracer) for v in values.values() for vv in v):  # pylint: disable=g-complex-comprehension
       raise RuntimeError(
           "Tracer detected! CollectingMetric cannot be JIT compiled.")
     if other.values and not self.values:
       return other
     if self.values and not other.values:
       return self
-    return type(self)(
-        jax.tree_map(
-            np.asarray, {
-                name: (*value, *other.values[name])
-                for name, value in self.values.items()
-            }))
+    return type(self)(jax.tree_map(np.asarray, values))
 
   def reduce(self) -> "CollectingMetric":
     # Note that this is usually called from inside a `pmap()` via

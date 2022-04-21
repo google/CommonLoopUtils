@@ -360,6 +360,13 @@ class MetricsTest(tf.test.TestCase, parameterized.TestCase):
     result = metric.compute()
     self.assertAllClose(result, 0.75)
 
+  def test_collecting_metric_tracer(self):
+    metric_class = metrics.CollectingMetric.from_outputs(("logits",))
+    with self.assertRaisesRegex(RuntimeError, r"^Tracer detected!"):
+      _ = self.make_compute_metric(
+          metric_class, reduce=False, jit=True)(
+              self.model_outputs)
+
   def test_collection_mixed_async(self):
     metric = CollectionMixed.empty()
     pool = asynclib.Pool()
