@@ -14,12 +14,13 @@
 
 """Helper function for creating and logging TF/JAX variable overviews."""
 
+import dataclasses
 from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 
 from absl import logging
 
-import dataclasses
 import flax
+import jax
 import numpy as np
 import tensorflow as tf
 
@@ -226,6 +227,8 @@ def get_parameter_overview(params: ParamsContainer,
   +----------------+---------------+------------+
   Total: 65,172,512
   """
+  if isinstance(params, (dict, flax.core.FrozenDict)):
+    params = jax.tree_map(np.asarray, params)
   rows = get_parameter_rows(params, include_stats=include_stats)
   total_weights = count_parameters(params)
   RowType = ParamRowWithStats if include_stats else ParamRow
