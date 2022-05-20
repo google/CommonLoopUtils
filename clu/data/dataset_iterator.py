@@ -75,6 +75,9 @@ class DatasetIterator(abc.ABC):
   def get_next(self) -> Element:
     """Returns the next element."""
 
+  def __next__(self) -> Element:
+    return self.get_next()
+
   @abc.abstractmethod
   def reset(self):
     """Resets the iterator back to the beginning."""
