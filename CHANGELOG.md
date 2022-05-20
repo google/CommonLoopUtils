@@ -67,14 +67,6 @@ Documentation:
 
 -   Added `clu_synopsis.ipynb` Colab
 
-## Next version
-
--   Switched from Python 3.6 to Python 3.7
-
-`preprocess_spec`
-
--   Makes `PreprocessFn` addable.
-
 ## v0.0.5
 
 -   Log error instead of failing when `profiler.start()` raises an exception.
@@ -89,3 +81,16 @@ Documentation:
 ## v0.0.6
 
 -   Makes `deterministic_data` work with `tfds>4.4.0` and `tfds<=4.4.0`.
+
+This will be the last release supporting Python 3.6.
+
+## v0.0.7
+
+-   Moves `clu.internal.asynclib` to `clu.asynclib`.
+-   Adds methods for writing raw tensors and audio to `MetricWriter`.
+-   Adds `clu.values` to annotate arrays with a modality.
+-   Adds `clu.data.DatasetIterator` - a generic interface between input
+    pipelines and training loops.
+-   Fixes various issues with `clu.metrics`.
+
+This will be the last release supporting Python 3.7.
