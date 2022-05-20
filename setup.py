@@ -45,6 +45,8 @@ setup(
     include_package_data=True,
     install_requires=[
         "absl-py",
+        "cached_property",
+        "etils[epath]",
         "flax",
         "jax",
         "jaxlib",
