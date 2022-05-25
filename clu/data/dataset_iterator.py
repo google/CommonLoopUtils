@@ -24,10 +24,10 @@ from __future__ import annotations
 
 import abc
 import dataclasses
+import functools
 import json
 from typing import Callable, Dict, Optional, Tuple, Union
 
-import cached_property
 from etils import epath
 import jax.numpy as jnp  # Just for type checking.
 import numpy as np
@@ -125,8 +125,8 @@ class TfDatasetIterator(DatasetIterator):
   def reset(self):
     self.iterator = iter(self._dataset)
 
-  @cached_property.cached_property
-  def element_spec(self) -> ElementSpec:  # pylint: disable=invalid-overridden-method
+  @functools.cached_property
+  def element_spec(self) -> ElementSpec:
     import tensorflow as tf  # pylint: disable=g-import-not-at-top
     element_spec = self._dataset.element_spec
     if not isinstance(element_spec, dict):

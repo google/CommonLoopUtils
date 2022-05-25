@@ -18,7 +18,7 @@ jobs:
     strategy:
       matrix:
         # TODO(b/222064972): Add '3.10'.
-        python-version: [3.7, 3.8, 3.9]
+        python-version: [3.8, 3.9]
     steps:
     - name: Cancel previous
       uses: styfle/cancel-workflow-action@0.8.0
