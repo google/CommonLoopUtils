@@ -57,7 +57,7 @@ Synopsis:
     return ms.unreplicate().compute()
 """
 
-from typing import Any, Callable, Dict, Optional, Sequence, Tuple, Type
+from typing import Any, Callable, Dict, Mapping, Optional, Sequence, Tuple, Type
 
 from absl import logging
 
@@ -161,20 +161,27 @@ class Metric:
   def from_fun(cls, fun: Callable):  # pylint: disable=g-bare-generic
     """Calls `cls.from_model_output` with the return value from `fun`.
 
+    Returns a `Metric` derived from `cls` whose `.from_model_output` (1) calls
+    `fun` with keyword arguments from `model_output` and (2) supplies the output
+    of `fun` to `cls.from_model_output`.
+
+    If the return value of `fun` is a `Mapping`, then it will be expanded to
+    create keyword arguments for `cls.from_model_output`. Otherwise, the output
+    of `fun` is supplied as a single argument to `cls.from_model_output`.
+
     Note that the model output "mask" will also be forwarded to the metric, but
-    only if it has the same first dimension as the value returned by `fun` when
-    called with keyword arguments from `model_output`.
-    This allows to use metrics created by this function both with values
-    that exist per-example, as well as with values that only
-    exist per batch.
+    only if it has the same first dimension as the value returned by `fun` (or
+    the first value in the `Mapping` returned by `fun`). This allows metrics
+    created by this function to be used both with values that exist per-example,
+    as well as with values that only exist per batch.
 
     Args:
       fun: Function to be applied to model output.
 
     Returns:
       A `Metric` derived from `cls` that calls `.from_model_output()` with
-      the first argument as the value returned by `fun`
-      when called with keyword arguments from `model_output`.
+      the output returned by `fun` when called with keyword arguments from
+      `model_output`.
     """
 
     @flax.struct.dataclass
@@ -185,13 +192,23 @@ class Metric:
       def from_model_output(cls, **model_output) -> Metric:
         mask = model_output.get("mask")
         output = fun(**model_output)
-        if mask is not None and (output.shape or [0])[0] != mask.shape[0]:
-          logging.warning(
-              "Ignoring mask for fun(**model output)"
-              "because of shape mismatch: "
-              "output.shape=%s vs. mask.shape=%s", output.shape, mask.shape)
-          mask = None
-        return super().from_model_output(output, mask=mask)
+        # Ignore the mask if its first dimension doesn't match that of the
+        # output of `fun`.
+        if mask is not None:
+          if isinstance(output, Mapping):
+            first_output = next(iter(output.values()))
+          else:
+            first_output = output
+          if (first_output.shape or [0])[0] != mask.shape[0]:
+            logging.warning(
+                "Ignoring mask for fun(**model output) because of shape "
+                "mismatch: output.shape=%s vs. mask.shape=%s",
+                first_output.shape, mask.shape)
+            mask = None
+        if isinstance(output, Mapping):
+          return super().from_model_output(**output, mask=mask)
+        else:
+          return super().from_model_output(output, mask=mask)
 
     return FromFun
 
@@ -231,8 +248,8 @@ class Metric:
         if mask is not None and (output.shape or [0])[0] != mask.shape[0]:
           logging.warning(
               "Ignoring mask for model output '%s' because of shape mismatch: "
-              "output.shape=%s vs. mask.shape=%s", name,
-              output.shape, mask.shape)
+              "output.shape=%s vs. mask.shape=%s", name, output.shape,
+              mask.shape)
           mask = None
         return super().from_model_output(output, mask=mask)
 
@@ -328,14 +345,16 @@ class CollectingMetric(Metric):
     """Returns a metric class that collects all model outputs named `names`."""
 
     @flax.struct.dataclass
-    class FromOutputs(cls):
+    class FromOutputs(cls):  # pylint:disable=missing-class-docstring
 
       @classmethod
       def from_model_output(cls, **model_output) -> Metric:
+
         def make_array(value):
           value = jnp.array(value)
           # Can't jnp.concatenate() scalars, promote to shape=(1,) in that case.
           return value[None] if value.ndim == 0 else value
+
         return cls({name: (make_array(model_output[name]),) for name in names})
 
     return FromOutputs
@@ -632,9 +651,10 @@ class Std(Metric):
 
   @classmethod
   def empty(cls):
-    return cls(total=jnp.array(0, jnp.float32),
-               sum_of_squares=jnp.array(0, jnp.float32),
-               count=jnp.array(0, jnp.int32))
+    return cls(
+        total=jnp.array(0, jnp.float32),
+        sum_of_squares=jnp.array(0, jnp.float32),
+        count=jnp.array(0, jnp.int32))
 
   @classmethod
   def from_model_output(cls,
