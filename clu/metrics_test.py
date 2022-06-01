@@ -140,21 +140,40 @@ class MetricsTest(tf.test.TestCase, parameterized.TestCase):
                                  metric2)
     self.assertAllEqual(metric12.reduce().compute(), metric2.compute())
 
-  @parameterized.named_parameters(
-      ("", False),)
-  def test_average_fun(self, reduce):
+  def test_from_fun_with_single_output(self):
 
     def accuracy(*, logits, labels, **_):
       return (logits.argmax(axis=-1) == labels).astype(jnp.float32)
 
     self.assertAllClose(
-        self.make_compute_metric(metrics.Average.from_fun(accuracy),
-                                 reduce)(self.model_outputs),
-        self.results["train_accuracy"])
+        self.make_compute_metric(
+            metrics.Average.from_fun(accuracy),
+            reduce=False)(self.model_outputs), self.results["train_accuracy"])
 
     self.assertAllClose(
-        self.make_compute_metric(metrics.Average.from_fun(accuracy),
-                                 reduce)(self.model_outputs_masked),
+        self.make_compute_metric(
+            metrics.Average.from_fun(accuracy),
+            reduce=False)(self.model_outputs_masked),
+        self.results_masked["train_accuracy"])
+
+  def test_from_fun_with_mapping_output(self):
+
+    # This tests .from_fun() with a function that returns a mapping. Accuracy
+    # accepts logits and labels already, so this function just passes them
+    # along. (This isn't needed in real code that uses Accuracy, just to test
+    # `from_fun`.)
+    def make_accuracy_args_map(*, logits, labels, **_):
+      return dict(logits=logits, labels=labels)
+
+    self.assertAllClose(
+        self.make_compute_metric(
+            metrics.Accuracy.from_fun(make_accuracy_args_map),
+            reduce=False)(self.model_outputs), self.results["train_accuracy"])
+
+    self.assertAllClose(
+        self.make_compute_metric(
+            metrics.Accuracy.from_fun(make_accuracy_args_map),
+            reduce=False)(self.model_outputs_masked),
         self.results_masked["train_accuracy"])
 
   @parameterized.named_parameters(
@@ -230,14 +249,14 @@ class MetricsTest(tf.test.TestCase, parameterized.TestCase):
         self.model_outputs_stacked["loss"].std(),
         atol=1e-4)
     self.assertAllClose(
-        self.make_compute_metric(metrics.Std.from_output("example_loss"),
-                                 reduce)(self.model_outputs_masked),
+        self.make_compute_metric(
+            metrics.Std.from_output("example_loss"),
+            reduce)(self.model_outputs_masked),
         self.model_outputs_stacked["loss"].std(),
         atol=1e-4)
 
   def test_collection_create(self):
-    collection = metrics.Collection.create(
-        accuracy=metrics.Accuracy)
+    collection = metrics.Collection.create(accuracy=metrics.Accuracy)
     self.assertAllClose(
         collection.single_from_model_output(
             logits=jnp.array([[-1., 1.], [1., -1.]]),
@@ -323,8 +342,7 @@ class MetricsTest(tf.test.TestCase, parameterized.TestCase):
         for model_output in self.model_outputs
     ]
     collection = jax.tree_multimap(lambda *args: jnp.stack(args), *collections)
-    with self.assertRaisesRegex(ValueError,
-                                r"^Collection is still replicated"):
+    with self.assertRaisesRegex(ValueError, r"^Collection is still replicated"):
       collection.compute()
 
   def test_collecting_metric(self):
@@ -350,10 +368,12 @@ class MetricsTest(tf.test.TestCase, parameterized.TestCase):
   def test_collecting_metric_async(self):
     metric = CollectingMetricAccuracy.empty()
     pool = asynclib.Pool()
+
     @pool
     def merge(update):
       nonlocal metric
       metric = metric.merge(update)
+
     for model_output in self.model_outputs:
       merge(jax.jit(CollectingMetricAccuracy.from_model_output)(**model_output))
     pool.join()
@@ -370,10 +390,12 @@ class MetricsTest(tf.test.TestCase, parameterized.TestCase):
   def test_collection_mixed_async(self):
     metric = CollectionMixed.empty()
     pool = asynclib.Pool()
+
     @pool
     def merge(update):
       nonlocal metric
       metric = metric.merge(update)
+
     for model_output in self.model_outputs:
       merge(jax.jit(CollectionMixed.single_from_model_output)(**model_output))
     pool.join()
@@ -388,8 +410,7 @@ class MetricsTest(tf.test.TestCase, parameterized.TestCase):
     @jax.jit
     @chex.assert_max_traces(n=1)
     def merge_collection(model_output, collection):
-      update = Collection.single_from_model_output(
-          **model_output)
+      update = Collection.single_from_model_output(**model_output)
       return collection.merge(update)
 
     # Metric will be initialized with a strong type
