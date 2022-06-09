@@ -52,8 +52,7 @@ Synopsis:
   def evaluate(model, p_variables, test_ds):
     ms = flax.jax_utils.replicate(Metrics.empty())
     for inputs, labels in test_ds:
-      ms = flax.jax_utils.unreplicate(
-          p_eval_step(ms, model, p_variables, inputs, labels))
+      ms = p_eval_step(ms, model, p_variables, inputs, labels)
     return ms.unreplicate().compute()
 """
 
