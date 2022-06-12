@@ -35,48 +35,124 @@ def preprocess_fn(features: Dict[str, tf.Tensor]) -> Dict[str, tf.Tensor]:
 See preprocess_spec_test.py for some simple examples.
 """
 
+import abc
 import ast
 import dataclasses
 import inspect
 import re
 import sys
-from typing import Dict, List, Sequence, Tuple, Type, Union
+import typing
+from typing import Dict, List, Protocol, Sequence, Tuple, Type, Union
 
 from absl import logging
 from flax import traverse_util
 import jax.numpy as jnp
 import tensorflow as tf
-import typing_extensions
 
 # Feature dictionary. Arbitrary nested dictionary with string keys and
 # tf.Tensor as leaves.
 Tensor = Union[tf.Tensor, tf.RaggedTensor, tf.SparseTensor]
 # TFDS allows for nested `Features` ...
-Features = Dict[str, Union[Tensor, "Features"]]  # pytype: disable=not-supported-yet
-# ... but it's usually a better idea NOT to nest them. Also better fo PyType.
+Features = Dict[str, Union[Tensor, "Features"]]
+# ... but it's usually a better idea NOT to nest them. Also better for PyType.
 FlatFeatures = Dict[str, Tensor]
-# Feature name for the random seed for tf.random.stateless_* ops.
+FlatFeaturesOrDataset = Union[FlatFeatures, tf.data.Dataset]
+
+# Feature name for the random seed for tf.random.stateless_* ops. By
+# convention ops should split of their random `seed` and keep the SEED_KEY
+# feature:
+# ```
+# features[SEEQ_KEY], seed = tf.unstack(
+#     tf.random.experimental.stateless_split(features[SEED_KEY]))
+# ````
 SEED_KEY = "seed"
+
 # Regex that finds upper case characters.
 _CAMEL_CASE_RGX = re.compile(r"(?<!^)(?=[A-Z])")
 
 
-@typing_extensions.runtime_checkable
-class PreprocessOp(typing_extensions.Protocol):
+@typing.runtime_checkable
+class PreprocessOp(Protocol):
   """Interface for all preprocess functions that transform `Features`.
 
   You don't have to inherit from this protocol. Your class only needs to provide
   the same function signature for __call__().
   While not strictly required we strongly recommend annotating the preprocess
-  ops with `@dataclasses.dataclass`. This shortens the code and creates a nice
-  __str__().
+  ops with `@dataclasses.dataclass(frozen=True)`. This shortens the code and
+  creates a nice __str__().
+
   get_all_ops() will only return dataclasses but all other methods work with
   any class implementing this protocol.
   """
 
   def __call__(self, features: Features) -> Features:
-    """Apply preprocessing op."""
-    ...
+    """Applies the preprocessing op to the features."""
+
+
+class MapTransform(abc.ABC):
+  """Base class for transformations of single elements.
+
+  This class implements the PreprocessOp interface and also:
+  - Limits the features to a flat dictionary (instead of an arbitrary nested
+    dictionary).
+  - Provides a convenient implementation of `__call__` that can automatically
+    apply the single transformation to a single example (`FlatFeatures`) or a
+    `tf.data.Dataset`. The latter is convenient for SeqIO users migrating to
+    preprocess_spec.py. For multiple transformations we still recommend users
+    to use the `PreprocessFn` class.
+  - Enforces subclasses to be a dataclasses.
+  """
+
+  def __new__(cls, *args, **kwargs):
+    del args, kwargs
+    # Check that our subclass instance is a dataclass. We cannot do this with
+    # `__init_subclass__`` because the dataclasses.dataclass decorator wraps
+    # the intermediate class which is a subclass of MapTransform but not a
+    # dataclass.
+    if not dataclasses.is_dataclass(cls):
+      raise ValueError(
+          f"Class {cls} is not a dataclass. We strongly recommend annotating "
+          "transformations with `@dataclasses.dataclass(frozen=True)`.")
+    return super().__new__(cls)
+
+  def __call__(self, features: FlatFeaturesOrDataset) -> FlatFeaturesOrDataset:
+    """Applies the transformation to the features or the dataset."""
+    if isinstance(features, tf.data.Dataset):
+      return features.map(self._transform, num_parallel_calls=tf.data.AUTOTUNE)
+    return self._transform(features)
+
+  @abc.abstractmethod
+  def _transform(self, features: FlatFeatures) -> FlatFeatures:
+    """Transforms the features."""
+
+
+class RandomMapTransform(MapTransform, abc.ABC):
+  """Base class for random transformations of single elements.
+
+  We require all random transformations to use stateless random operations (e.g.
+  `tf.random.stateless_uniform()`) and respect the provided random seed. The
+  user can expect the random seed to be unique for the element.
+
+  If multiple random seeds are required the user can split the seed into N
+  new seeds:
+  ```
+  seeds = tf.unstack(tf.random.experimental.stateless_split(seed, N))
+  ```
+  """
+
+  def __call__(self, features: FlatFeaturesOrDataset) -> FlatFeaturesOrDataset:
+    if isinstance(features, tf.data.Dataset):
+      return features.map(self, num_parallel_calls=tf.data.AUTOTUNE)
+
+    next_seed, seed = tf.unstack(
+        tf.random.experimental.stateless_split(features.pop(SEED_KEY)))
+    features = self._transform(features, seed)
+    features[SEED_KEY] = next_seed
+    return features
+
+  @abc.abstractmethod
+  def _transform(self, features: FlatFeatures, seed: tf.Tensor) -> FlatFeatures:
+    """Transforms the features only using stateless random ops."""
 
 
 def get_all_ops(module_name: str) -> List[Tuple[str, Type[PreprocessOp]]]:
@@ -200,8 +276,7 @@ class PreprocessFn:
 
 def _get_op_class(
     expr: List[ast.stmt],
-    available_ops: Dict[str,
-                        Type[PreprocessOp]]) -> Type[PreprocessOp]:
+    available_ops: Dict[str, Type[PreprocessOp]]) -> Type[PreprocessOp]:
   """Gets the process op fn from the given expression."""
   if isinstance(expr, ast.Call):
     fn_name = expr.func.id
@@ -217,8 +292,7 @@ def _get_op_class(
 
 
 def _parse_single_preprocess_op(
-    spec: str,
-    available_ops: Dict[str, Type[PreprocessOp]]) -> PreprocessOp:
+    spec: str, available_ops: Dict[str, Type[PreprocessOp]]) -> PreprocessOp:
   """Parsing the spec for a single preprocess op.
 
   The op can just be the method name or the method name followed by any
@@ -234,8 +308,8 @@ def _parse_single_preprocess_op(
   """
   try:
     expr = ast.parse(spec, mode="eval").body  # pytype: disable=attribute-error
-  except SyntaxError:
-    raise ValueError(f"{spec!r} is not a valid preprocess op spec.")
+  except SyntaxError as e:
+    raise ValueError(f"{spec!r} is not a valid preprocess op spec.") from e
   op_class = _get_op_class(expr, available_ops)  # pytype: disable=wrong-arg-types
 
   # Simple case without arguments.
