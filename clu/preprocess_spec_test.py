@@ -22,14 +22,14 @@ import tensorflow as tf
 Features = preprocess_spec.Features
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(frozen=True)
 class ToFloat:
 
   def __call__(self, features: Features) -> Features:
     return {k: tf.cast(v, tf.float32) / 255.0 for k, v in features.items()}
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(frozen=True)
 class Rescale:
 
   scale: int = 1
@@ -37,6 +37,14 @@ class Rescale:
   def __call__(self, features: Features) -> Features:
     features["image"] *= self.scale
     features["segmentation_mask"] *= self.scale
+    return features
+
+
+@dataclasses.dataclass(frozen=True)
+class AddRandomInteger(preprocess_spec.RandomMapTransform):
+
+  def _transform(self, features, seed):
+    features["x"] = tf.random.stateless_uniform([], seed)
     return features
 
 
@@ -65,9 +73,8 @@ class PreprocessSpecTest(parameterized.TestCase, tf.test.TestCase):
 
   def test_invalid_op_name(self):
     with self.assertRaisesRegex(
-        ValueError,
-        r"'does_not_exist' is not available \(available ops: \['rescale', "
-        r"'to_float'\]\)."):
+        ValueError, r"'does_not_exist' is not available \(available ops: "
+        r"\['add_random_integer', 'rescale', 'to_float'\]\)."):
       preprocess_spec._parse_single_preprocess_op("does_not_exist",
                                                   dict(all_ops()))
 
@@ -153,6 +160,29 @@ class PreprocessSpecTest(parameterized.TestCase, tf.test.TestCase):
     self.assertTrue(fn[:-1].only_jax_types)
     self.assertEqual(fn[1].ops, [op2])
     self.assertTrue(fn[1].only_jax_types)
+
+  def test_random_map_transform(self):
+    ds = tf.data.Dataset.from_tensor_slices({"seed": [[1, 2], [3, 4], [1, 2]]})
+    ds = ds.map(AddRandomInteger())
+    actual = list(ds)
+    print("actual:", actual)
+    expect = [
+        # Random number was generated and random seed changed.
+        {
+            "x": 0.8838011,
+            "seed": [1105988140, 1738052849]
+        },
+        {
+            "x": 0.33396423,
+            "seed": [-1860230133, -671226999]
+        },
+        # Same random seed as first element creates same outcome.
+        {
+            "x": 0.8838011,
+            "seed": [1105988140, 1738052849]
+        },
+    ]
+    self.assertAllClose(actual, expect)
 
 
 if __name__ == "__main__":
