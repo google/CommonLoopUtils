@@ -19,6 +19,11 @@ several frameworks providing datasets can implement this interface without
 knowing anything about the framework used for the model and the training loop.
 Likewise can training loops assume to get an DatasetIterator object and do not
 need to care about the specifics of the input pipelines.
+
+This modules does not depend on TensorFlow. The interface is generic and users
+don't have to use `tf.data` to construct a DatasetIterator. However, if they
+use `tf.data` they can simply wrap their `tf.data.Dataset` object with
+`TfDatasetIterator` to satisfy the interface.
 """
 from __future__ import annotations
 
@@ -26,21 +31,18 @@ import abc
 import dataclasses
 import functools
 import json
-from typing import Callable, Dict, Optional, Tuple, Union
+import typing
+from typing import Any, Callable, Dict, Optional, Tuple, Union
 
 from etils import epath
 import jax.numpy as jnp  # Just for type checking.
 import numpy as np
 
-# This will be removed once epath provides a pathlib-like API that does not
-# depend on TF.
-from tensorflow.io import gfile
-
-gfile_open = gfile.Open if hasattr(gfile, "Open") else gfile.GFile
-
 DType = np.dtype
 # Sizes of dimensions, None means the dimension size is unknown.
 Shape = Tuple[Optional[int], ...]
+
+INDEX = "index"
 
 
 @dataclasses.dataclass
@@ -113,27 +115,40 @@ class TfDatasetIterator(DatasetIterator):
   """DatasetIterator for wrapping a `tf.data.Dataset`."""
 
   def __init__(self, dataset):
-    # `dataset` must be a tf.data.Dataset object we omit the type annotation
-    # to avoid importing TF for all users of this module.
+    try:
+      if typing.TYPE_CHECKING:
+        tf = Any
+      else:
+        import tensorflow as tf  # pylint: disable=g-import-not-at-top
+    except ImportError as e:
+      raise RuntimeError("When using TfDatasetIterator your binary must "
+                         "depend on //third_party/py/tensorflow.") from e
+    self._tf = tf
+
+    if not isinstance(dataset, tf.data.Dataset):
+      raise ValueError("`dataset` must be an instance of `tf.data.Dataset` "
+                       f"but got {type(dataset)}.")
     self._dataset = dataset
     assert self.element_spec  # Verify element spec.
     self.iterator = iter(dataset)
+    self._ckpt = tf.train.Checkpoint(ds=self.iterator)
 
   def get_next(self) -> Element:
     return {k: np.asarray(v) for k, v in next(self.iterator).items()}
 
   def reset(self):
     self.iterator = iter(self._dataset)
+    self._ckpt = self._tf.train.Checkpoint(ds=self.iterator)
 
   @functools.cached_property
   def element_spec(self) -> ElementSpec:
-    import tensorflow as tf  # pylint: disable=g-import-not-at-top
     element_spec = self._dataset.element_spec
     if not isinstance(element_spec, dict):
       raise ValueError("Dataset elements must be flat dictionaries but got "
                        f"{element_spec}.")
     invalid_features = [
-        k for k, v in element_spec.items() if not isinstance(v, tf.TensorSpec)
+        k for k, v in element_spec.items()
+        if not isinstance(v, self._tf.TensorSpec)
     ]
     if invalid_features:
       raise ValueError(f"Features {invalid_features} are not tensors. Dataset "
@@ -144,17 +159,10 @@ class TfDatasetIterator(DatasetIterator):
     }
 
   def save(self, filename: epath.PathLike):
-    import tensorflow as tf  # pylint: disable=g-import-not-at-top
-    ckpt = tf.train.Checkpoint(ds=self.iterator)
-    ckpt.write(str(filename))
+    self._ckpt.write(str(filename))
 
   def load(self, filename: epath.PathLike):
-    import tensorflow as tf  # pylint: disable=g-import-not-at-top
-    ckpt = tf.train.Checkpoint(ds=self.iterator)
-    ckpt.read(str(filename)).assert_consumed()
-
-
-INDEX = "index"
+    self._ckpt.read(str(filename)).assert_consumed()
 
 
 class IndexBasedDatasetIterator(DatasetIterator):
@@ -183,10 +191,9 @@ class IndexBasedDatasetIterator(DatasetIterator):
 
   def save(self, filename: epath.PathLike):
     ckpt = {"last_seen_index": self._last_seen_index}
-    with gfile_open(str(filename), "w") as f:
-      json.dump(ckpt, f)
+    epath.Path(filename).write_text(json.dumps(ckpt))
 
   def load(self, filename: epath.PathLike):
-    with gfile_open(str(filename)) as f:
-      self._last_seen_index = json.load(f)["last_seen_index"]
+    ckpt = json.loads(epath.Path(filename).read_text())
+    self._last_seen_index = ckpt["last_seen_index"]
     self._iterator = self._start_index_to_iterator(self._last_seen_index + 1)
