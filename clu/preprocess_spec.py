@@ -155,6 +155,20 @@ class RandomMapTransform(MapTransform, abc.ABC):
     """Transforms the features only using stateless random ops."""
 
 
+class FilterTransform(abc.ABC):
+
+  def __call__(
+      self,
+      features: FlatFeaturesOrDataset) -> Union[tf.Tensor, tf.data.Dataset]:
+    if isinstance(features, tf.data.Dataset):
+      return features.filter(self)
+    return self._predicate(features)
+
+  @abc.abstractmethod
+  def _predicate(self, features: FlatFeatures) -> tf.Tensor:
+    """Returns a True if the element should be kept."""
+
+
 def get_all_ops(module_name: str) -> List[Tuple[str, Type[PreprocessOp]]]:
   """Helper to return all preprocess ops in a module.
 
