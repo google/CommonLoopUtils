@@ -20,6 +20,7 @@ from clu import preprocess_spec
 import tensorflow as tf
 
 Features = preprocess_spec.Features
+SEED_KEY = preprocess_spec.SEED_KEY
 
 
 @dataclasses.dataclass(frozen=True)
@@ -162,7 +163,8 @@ class PreprocessSpecTest(parameterized.TestCase, tf.test.TestCase):
     self.assertTrue(fn[1].only_jax_types)
 
   def test_random_map_transform(self):
-    ds = tf.data.Dataset.from_tensor_slices({"seed": [[1, 2], [3, 4], [1, 2]]})
+    ds = tf.data.Dataset.from_tensor_slices(
+        {SEED_KEY: [[1, 2], [3, 4], [1, 2]]})
     ds = ds.map(AddRandomInteger())
     actual = list(ds)
     print("actual:", actual)
@@ -170,16 +172,16 @@ class PreprocessSpecTest(parameterized.TestCase, tf.test.TestCase):
         # Random number was generated and random seed changed.
         {
             "x": 0.8838011,
-            "seed": [1105988140, 1738052849]
+            SEED_KEY: [1105988140, 1738052849]
         },
         {
             "x": 0.33396423,
-            "seed": [-1860230133, -671226999]
+            SEED_KEY: [-1860230133, -671226999]
         },
         # Same random seed as first element creates same outcome.
         {
             "x": 0.8838011,
-            "seed": [1105988140, 1738052849]
+            SEED_KEY: [1105988140, 1738052849]
         },
     ]
     self.assertAllClose(actual, expect)
