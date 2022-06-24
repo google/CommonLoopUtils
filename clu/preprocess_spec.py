@@ -42,7 +42,7 @@ import inspect
 import re
 import sys
 import typing
-from typing import Dict, List, Protocol, Sequence, Tuple, Type, Union
+from typing import Dict, List, Protocol, Sequence, Tuple, Type, TypeVar, Union
 
 from absl import logging
 from flax import traverse_util
@@ -56,16 +56,16 @@ Tensor = Union[tf.Tensor, tf.RaggedTensor, tf.SparseTensor]
 Features = Dict[str, Union[Tensor, "Features"]]
 # ... but it's usually a better idea NOT to nest them. Also better for PyType.
 FlatFeatures = Dict[str, Tensor]
-FlatFeaturesOrDataset = Union[FlatFeatures, tf.data.Dataset]
+D = TypeVar("D", FlatFeatures, tf.data.Dataset)
 
 # Feature name for the random seed for tf.random.stateless_* ops. By
-# convention ops should split of their random `seed` and keep the SEED_KEY
+# convention ops should split of their random seed and keep the SEED_KEY
 # feature:
 # ```
 # features[SEEQ_KEY], seed = tf.unstack(
 #     tf.random.experimental.stateless_split(features[SEED_KEY]))
 # ````
-SEED_KEY = "seed"
+SEED_KEY = "_seed"
 
 # Regex that finds upper case characters.
 _CAMEL_CASE_RGX = re.compile(r"(?<!^)(?=[A-Z])")
@@ -115,7 +115,7 @@ class MapTransform(abc.ABC):
           "transformations with `@dataclasses.dataclass(frozen=True)`.")
     return super().__new__(cls)
 
-  def __call__(self, features: FlatFeaturesOrDataset) -> FlatFeaturesOrDataset:
+  def __call__(self, features: D) -> D:
     """Applies the transformation to the features or the dataset."""
     if isinstance(features, tf.data.Dataset):
       return features.map(self._transform, num_parallel_calls=tf.data.AUTOTUNE)
@@ -140,7 +140,7 @@ class RandomMapTransform(MapTransform, abc.ABC):
   ```
   """
 
-  def __call__(self, features: FlatFeaturesOrDataset) -> FlatFeaturesOrDataset:
+  def __call__(self, features: D) -> D:
     if isinstance(features, tf.data.Dataset):
       return features.map(self, num_parallel_calls=tf.data.AUTOTUNE)
 
@@ -157,12 +157,8 @@ class RandomMapTransform(MapTransform, abc.ABC):
 
 class FilterTransform(abc.ABC):
 
-  def __call__(
-      self,
-      features: FlatFeaturesOrDataset) -> Union[tf.Tensor, tf.data.Dataset]:
-    if isinstance(features, tf.data.Dataset):
-      return features.filter(self)
-    return self._predicate(features)
+  def __call__(self, dataset: tf.data.Dataset) -> tf.data.Dataset:
+    return dataset.filter(self._predicate)
 
   @abc.abstractmethod
   def _predicate(self, features: FlatFeatures) -> tf.Tensor:

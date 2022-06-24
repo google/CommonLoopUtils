@@ -32,7 +32,7 @@ import dataclasses
 import functools
 import json
 import typing
-from typing import Any, Callable, Dict, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Mapping, Optional, Tuple, Union
 
 from etils import epath
 import jax.numpy as jnp  # Just for type checking.
@@ -42,10 +42,8 @@ DType = np.dtype
 # Sizes of dimensions, None means the dimension size is unknown.
 Shape = Tuple[Optional[int], ...]
 
-INDEX = "index"
 
-
-@dataclasses.dataclass
+@dataclasses.dataclass(frozen=True)
 class ArraySpec:
   """Describes an array via it's dtype and shape."""
   dtype: DType
@@ -55,7 +53,7 @@ class ArraySpec:
 # Elements are dictionaries with NumPy/JAX arrays.
 Array = Union[np.ndarray, jnp.ndarray]
 Element = Dict[str, Array]
-ElementSpec = Dict[str, ArraySpec]
+ElementSpec = Mapping[str, ArraySpec]
 
 
 class DatasetIterator(abc.ABC):
@@ -79,6 +77,9 @@ class DatasetIterator(abc.ABC):
 
   def __next__(self) -> Element:
     return self.get_next()
+
+  def __iter__(self) -> DatasetIterator:
+    return self
 
   @abc.abstractmethod
   def reset(self):
@@ -172,13 +173,16 @@ class IndexBasedDatasetIterator(DatasetIterator):
   dataset by keeping track of the last seen "index". See go/preemptable-tf-data.
   """
 
-  def __init__(self, start_index_to_iterator: Callable[[int], DatasetIterator]):
+  def __init__(self,
+               start_index_to_iterator: Callable[[int], DatasetIterator],
+               index_feature_name: str = "_index"):
     self._start_index_to_iterator = start_index_to_iterator
     self._iterator = self._start_index_to_iterator(0)
+    self._index_feature_name = index_feature_name
 
   def get_next(self) -> Element:
     element = self._iterator.get_next()
-    self._last_seen_index = element[INDEX].max().item()
+    self._last_seen_index = element[self._index_feature_name].max().item()
     return element
 
   def reset(self):
