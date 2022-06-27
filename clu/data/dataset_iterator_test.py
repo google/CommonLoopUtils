@@ -65,36 +65,6 @@ class DatasetIteratorTest(tf.test.TestCase):
     # Iterator is at the end (batch 4).
     self.assertEqual(next(it), {INDEX: [8, 9], "prime": [23, 29]})
 
-  def test_index_iterator(self):
-    it = dataset_iterator.IndexBasedDatasetIterator(self._create_iterator)
-    self.assertEqual(
-        it.element_spec, {
-            INDEX: dataset_iterator.ArraySpec(np.int64, (2,)),
-            "prime": dataset_iterator.ArraySpec(np.int32, (2,))
-        })
-    self.assertEqual(next(it), {INDEX: [0, 2], "prime": [2, 5]})
-    self.assertEqual(next(it), {INDEX: [4, 5], "prime": [11, 13]})
-    it.reset()
-    # Iterator starts from the beginning.
-    self.assertEqual(next(it), {INDEX: [0, 2], "prime": [2, 5]})
-
-  def test_index_iterator_save_and_load(self):
-    it = dataset_iterator.IndexBasedDatasetIterator(self._create_iterator)
-    next(it)
-    next(it)
-    next(it)
-    work_dir = pathlib.Path(tempfile.mkdtemp())
-    filename = work_dir / "ckpt"
-    it.save(filename)
-    self.assertTrue(filename.exists())
-
-    it = dataset_iterator.IndexBasedDatasetIterator(self._create_iterator)
-    # Iterator is at the beginning (batch 1).
-    self.assertEqual(next(it), {INDEX: [0, 2], "prime": [2, 5]})
-    it.load(filename)
-    # Iterator is at the end (batch 4).
-    self.assertEqual(next(it), {INDEX: [8, 9], "prime": [23, 29]})
-
 
 if __name__ == "__main__":
   tf.test.main()
