@@ -30,9 +30,8 @@ from __future__ import annotations
 import abc
 import dataclasses
 import functools
-import json
 import typing
-from typing import Any, Callable, Dict, Mapping, Optional, Tuple, Union
+from typing import Any, Dict, Mapping, Optional, Tuple, Union
 
 from etils import epath
 import jax.numpy as jnp  # Just for type checking.
@@ -164,40 +163,3 @@ class TfDatasetIterator(DatasetIterator):
 
   def load(self, filename: epath.PathLike):
     self._ckpt.read(str(filename)).assert_consumed()
-
-
-class IndexBasedDatasetIterator(DatasetIterator):
-  """Checkpointable iterator that restores state based on the last seen index.
-
-  This iterator enables deterministic input pipelines without materialising the
-  dataset by keeping track of the last seen "index". See go/preemptable-tf-data.
-  """
-
-  def __init__(self,
-               start_index_to_iterator: Callable[[int], DatasetIterator],
-               index_feature_name: str = "_index"):
-    self._start_index_to_iterator = start_index_to_iterator
-    self._iterator = self._start_index_to_iterator(0)
-    self._index_feature_name = index_feature_name
-
-  def get_next(self) -> Element:
-    element = self._iterator.get_next()
-    self._last_seen_index = element[self._index_feature_name].max().item()
-    return element
-
-  def reset(self):
-    self._last_seen_index = -1
-    self._iterator = self._start_index_to_iterator(0)
-
-  @property
-  def element_spec(self) -> ElementSpec:
-    return self._iterator.element_spec
-
-  def save(self, filename: epath.PathLike):
-    ckpt = {"last_seen_index": self._last_seen_index}
-    epath.Path(filename).write_text(json.dumps(ckpt))
-
-  def load(self, filename: epath.PathLike):
-    ckpt = json.loads(epath.Path(filename).read_text())
-    self._last_seen_index = ckpt["last_seen_index"]
-    self._iterator = self._start_index_to_iterator(self._last_seen_index + 1)

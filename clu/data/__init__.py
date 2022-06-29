@@ -18,5 +18,4 @@ This will long term replace clu.deterministic_data.
 """
 
 from clu.data.dataset_iterator import DatasetIterator
-from clu.data.dataset_iterator import IndexBasedDatasetIterator
 from clu.data.dataset_iterator import TfDatasetIterator
