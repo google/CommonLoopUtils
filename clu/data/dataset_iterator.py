@@ -48,6 +48,12 @@ class ArraySpec:
   dtype: DType
   shape: Shape
 
+  def __repr__(self):
+    return f"ArraySpec(dtype={np.dtype(self.dtype).name}, shape={self.shape})"
+
+  def __str__(self):
+    return f"{np.dtype(self.dtype).name}{list(self.shape)}"
+
 
 # Elements are dictionaries with NumPy/JAX arrays.
 Array = Union[np.ndarray, jnp.ndarray]
