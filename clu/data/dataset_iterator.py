@@ -120,8 +120,25 @@ class DatasetIterator(abc.ABC):
 class TfDatasetIterator(DatasetIterator):
   """DatasetIterator for wrapping a `tf.data.Dataset`."""
 
-  def __init__(self, dataset):
+  def __init__(self, dataset, checkpoint: bool = False):
+    """Wraps `tf.data.Dataset` object into the `DatasetIterator` interface.
+
+    Warning: Do not wrap this interator to do asynchronous prefetching if you
+    use `checkpoint=True` (default). tf.data iterators must be saved()
+    synchronously.
+
+    Args:
+      dataset: The dataset to wrap. Elements are converted to NumPy arrays but
+        no additional prefetching is done. tf.data should automatically prefetch
+        elements (to CPU memory).
+      checkpoint: Whether to checkpoint the dataset iterator object.
+        Checkpointing dataset iterators is required for handling job
+        pre-emptions but depending on your input pipeline can result in very
+        large checkpoints. If set to False save() and load() are no-ops.
+    """
     try:
+      # Since this is the only class in this module using TF we only import
+      # tensorflow if needed.
       if typing.TYPE_CHECKING:
         tf = Any
       else:
@@ -135,6 +152,7 @@ class TfDatasetIterator(DatasetIterator):
       raise ValueError("`dataset` must be an instance of `tf.data.Dataset` "
                        f"but got {type(dataset)}.")
     self._dataset = dataset
+    self._checkpoint = checkpoint
     assert self.element_spec  # Verify element spec.
     self.iterator = iter(dataset)
     self._ckpt = tf.train.Checkpoint(ds=self.iterator)
@@ -165,7 +183,9 @@ class TfDatasetIterator(DatasetIterator):
     }
 
   def save(self, filename: epath.PathLike):
-    self._ckpt.write(str(filename))
+    if self._checkpoint:
+      self._ckpt.write(str(filename))
 
   def load(self, filename: epath.PathLike):
-    self._ckpt.read(str(filename)).assert_consumed()
+    if self._checkpoint:
+      self._ckpt.read(str(filename)).assert_consumed()
