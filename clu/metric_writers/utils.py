@@ -31,6 +31,7 @@ from clu.metric_writers.interface import MetricWriter
 from clu.metric_writers.logging_writer import LoggingWriter
 from clu.metric_writers.multi_writer import MultiWriter
 from clu.metric_writers.summary_writer import SummaryWriter
+from etils import epath
 import jax.numpy as jnp
 import numpy as np
 
@@ -91,7 +92,7 @@ def write_values(writer: MetricWriter, step: int,
 
 
 def create_default_writer(
-    logdir: Optional[str] = None,
+    logdir: Optional[epath.PathLike] = None,
     *,
     just_logging: bool = False,
     asynchronous: bool = True,
@@ -125,9 +126,10 @@ def create_default_writer(
       return MultiWriter([LoggingWriter(collection=collection)])
   writers = [LoggingWriter(collection=collection)]
   if logdir is not None:
+    logdir = epath.Path(logdir)
     if collection is not None:
-      logdir = os.path.join(logdir, collection)
-    writers.append(SummaryWriter(logdir))
+      logdir /= collection
+    writers.append(SummaryWriter(os.fspath(logdir)))
   if asynchronous:
     return AsyncMultiWriter(writers)
   return MultiWriter(writers)

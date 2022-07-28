@@ -18,6 +18,7 @@ import abc
 import collections
 import concurrent.futures
 import contextlib
+import os
 import queue
 import time
 from typing import Callable, Iterable, Optional, Sequence
@@ -28,6 +29,7 @@ from clu import metric_writers
 from clu import platform
 from clu import profiler
 
+from etils import epath
 import jax
 import jax.numpy as jnp
 
@@ -285,16 +287,17 @@ class Profile(PeriodicAction):
 
   """
 
-  def __init__(self,
-               *,
-               logdir: str,
-               num_profile_steps: Optional[int] = 5,
-               profile_duration_ms: Optional[int] = 3_000,
-               first_profile: int = 10,
-               every_steps: Optional[int] = None,
-               every_secs: Optional[float] = 3600.0,
-               artifact_name: str = "[{step}] Profile",
-               ):
+  def __init__(
+      self,
+      *,
+      logdir: epath.PathLike,
+      num_profile_steps: Optional[int] = 5,
+      profile_duration_ms: Optional[int] = 3_000,
+      first_profile: int = 10,
+      every_steps: Optional[int] = None,
+      every_secs: Optional[float] = 3600.0,
+      artifact_name: str = "[{step}] Profile",
+  ):
     """Initializes a new periodic profiler action.
 
     Args:
@@ -318,7 +321,7 @@ class Profile(PeriodicAction):
     self._profile_duration_ms = profile_duration_ms
     self._session_running = False
     self._session_started = None
-    self._logdir = logdir
+    self._logdir = os.fspath(logdir)
     self._artifact_name = artifact_name
 
   def _should_trigger(self, step: int, t: float) -> bool:
