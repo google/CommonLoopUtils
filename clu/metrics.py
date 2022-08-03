@@ -95,7 +95,7 @@ class Metric:
 
       @classmethod
       def from_model_output(cls, value: jnp.array, **_) -> Metric:
-        return cls(total=value.sum(), count=jnp.prod(value.shape))
+        return cls(total=value.sum(), count=np.prod(value.shape))
 
       def merge(self, other: Metric) -> Metric:
         return type(self)(
