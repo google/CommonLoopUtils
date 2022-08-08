@@ -28,7 +28,7 @@ class ReportProgressTest(tf.test.TestCase, parameterized.TestCase):
   def test_every_steps(self):
     hook = periodic_actions.ReportProgress(
         every_steps=4, every_secs=None, num_train_steps=10)
-    t = time.time()
+    t = time.monotonic()
     with self.assertLogs(level="INFO") as logs:
       self.assertFalse(hook(1, t))
       t += 0.11
@@ -45,7 +45,7 @@ class ReportProgressTest(tf.test.TestCase, parameterized.TestCase):
   def test_every_secs(self):
     hook = periodic_actions.ReportProgress(
         every_steps=None, every_secs=0.3, num_train_steps=10)
-    t = time.time()
+    t = time.monotonic()
     with self.assertLogs(level="INFO") as logs:
       self.assertFalse(hook(1, t))
       t += 0.11
@@ -61,7 +61,7 @@ class ReportProgressTest(tf.test.TestCase, parameterized.TestCase):
 
   def test_without_num_train_steps(self):
     report = periodic_actions.ReportProgress(every_steps=2)
-    t = time.time()
+    t = time.monotonic()
     with self.assertLogs(level="INFO") as logs:
       self.assertFalse(report(1, t))
       self.assertTrue(report(2, t + 0.12))
@@ -74,7 +74,7 @@ class ReportProgressTest(tf.test.TestCase, parameterized.TestCase):
     report = periodic_actions.ReportProgress(
         every_steps=2,
         num_train_steps=tf.data.UNKNOWN_CARDINALITY)
-    t = time.time()
+    t = time.monotonic()
     with self.assertLogs(level="INFO") as logs:
       self.assertFalse(report(1, t))
       self.assertTrue(report(2, t + 0.12))
@@ -85,7 +85,7 @@ class ReportProgressTest(tf.test.TestCase, parameterized.TestCase):
 
   def test_called_every_step(self):
     hook = periodic_actions.ReportProgress(every_steps=3, num_train_steps=10)
-    t = time.time()
+    t = time.monotonic()
     with self.assertRaisesRegex(
         ValueError, "PeriodicAction must be called after every step"):
       hook(1, t)
@@ -95,7 +95,7 @@ class ReportProgressTest(tf.test.TestCase, parameterized.TestCase):
       ("_nowait", False),
       ("_wait", True),
   )
-  @mock.patch("time.time")
+  @mock.patch("time.monotonic")
   def test_named(self, wait_jax_async_dispatch, mock_time):
     mock_time.return_value = 0
     hook = periodic_actions.ReportProgress(
@@ -124,6 +124,21 @@ class ReportProgressTest(tf.test.TestCase, parameterized.TestCase):
         " (0m : 50.0% test1, 25.0% test2)"
     ])
 
+  @mock.patch("time.monotonic")
+  def test_write_metrics(self, time_mock):
+    time_mock.return_value = 0
+    writer_mock = mock.Mock()
+    hook = periodic_actions.ReportProgress(
+        every_steps=2, every_secs=None, writer=writer_mock)
+    time_mock.return_value = 1
+    hook(1)
+    time_mock.return_value = 2
+    hook(2)
+    self.assertEqual(writer_mock.write_scalars.mock_calls, [
+        mock.call(2, {"steps_per_sec": 1}),
+        mock.call(2, {"uptime": 2}),
+    ])
+
 
 class DummyProfilerSession:
   """Dummy Profiler that records the steps at which sessions started/ended."""
@@ -144,7 +159,7 @@ class DummyProfilerSession:
 class ProfileTest(tf.test.TestCase):
 
   @mock.patch.object(periodic_actions, "profiler", autospec=True)
-  @mock.patch("time.time")
+  @mock.patch("time.monotonic")
   def test_every_steps(self, mock_time, mock_profiler):
     start_steps = []
     stop_steps = []
@@ -213,7 +228,7 @@ class PeriodicCallbackTest(tf.test.TestCase):
     ]
     self.assertListEqual(expected_calls, callback.call_args_list)
 
-  @mock.patch("time.time")
+  @mock.patch("time.monotonic")
   def test_every_secs(self, mock_time):
     callback = mock.Mock()
     hook = periodic_actions.PeriodicCallback(every_secs=2, callback_fn=callback)
