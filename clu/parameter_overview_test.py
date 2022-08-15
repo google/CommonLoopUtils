@@ -14,34 +14,18 @@
 
 """Tests for parameter overviews."""
 
+from absl.testing import absltest
 from clu import parameter_overview
 from flax import linen as nn
 import jax
 import jax.numpy as jnp
-import sonnet as snt
-import tensorflow as tf
+
 
 EMPTY_PARAMETER_OVERVIEW = """+------+-------+------+------+-----+
 | Name | Shape | Size | Mean | Std |
 +------+-------+------+------+-----+
 +------+-------+------+------+-----+
 Total: 0"""
-
-SNT_CONV2D_PARAMETER_OVERVIEW = """+----------+--------------+------+
-| Name     | Shape        | Size |
-+----------+--------------+------+
-| conv/b:0 | (2,)         | 2    |
-| conv/w:0 | (3, 3, 3, 2) | 54   |
-+----------+--------------+------+
-Total: 56"""
-
-SNT_CONV2D_PARAMETER_OVERVIEW_WITH_STATS = """+----------+--------------+------+------+-----+
-| Name     | Shape        | Size | Mean | Std |
-+----------+--------------+------+------+-----+
-| conv/b:0 | (2,)         | 2    | 1.0  | 0.0 |
-| conv/w:0 | (3, 3, 3, 2) | 54   | 1.0  | 0.0 |
-+----------+--------------+------+------+-----+
-Total: 56"""
 
 FLAX_CONV2D_PARAMETER_OVERVIEW = """+-------------+--------------+------+
 | Name        | Shape        | Size |
@@ -68,64 +52,6 @@ FLAX_CONV2D_MAPPING_PARAMETER_OVERVIEW_WITH_STATS = """+--------------------+---
 Total: 56"""
 
 
-class TfParameterOverviewTest(tf.test.TestCase):
-
-  def test_count_parameters_empty(self):
-    module = snt.Module()
-    snt.allow_empty_variables(module)
-
-    # No variables.
-    self.assertEqual(0, parameter_overview.count_parameters(module))
-
-    # Single variable.
-    module.var = tf.Variable([0, 1])
-    self.assertEqual(2, parameter_overview.count_parameters(module))
-
-  def test_count_parameters_on_module(self):
-    module = snt.Module()
-    # Weights of a 2D convolution with 2 filters..
-    module.conv = snt.Conv2D(output_channels=2, kernel_shape=3, name="conv")
-    module.conv(tf.ones((2, 5, 5, 3)))  # 3 * 3*3 * 2 + 2 (bias) = 56 parameters
-    self.assertEqual(56, parameter_overview.count_parameters(module))
-
-  def test_count_parameters_on_module_with_duplicate_names(self):
-    module = snt.Module()
-    # Weights of a 2D convolution with 2 filters..
-    module.conv = snt.Conv2D(output_channels=2, kernel_shape=3, name="conv")
-    module.conv(tf.ones((2, 5, 5, 3)))  # 3 * 3*3 * 2 + 2 (bias) = 56 parameters
-    module.conv2 = snt.Conv2D(output_channels=2, kernel_shape=3, name="conv")
-    module.conv2(tf.ones(
-        (2, 5, 5, 3)))  # 3 * 3*3 * 2 + 2 (bias) = 56 parameters
-    parameter_overview.log_parameter_overview(module)
-    self.assertEqual(112, parameter_overview.count_parameters(module))
-
-  def test_get_parameter_overview_empty(self):
-    module = snt.Module()
-    snt.allow_empty_variables(module)
-
-    # No variables.
-    self.assertEqual(EMPTY_PARAMETER_OVERVIEW,
-                     parameter_overview.get_parameter_overview(module))
-
-    module.conv = snt.Conv2D(output_channels=2, kernel_shape=3)
-    # Variables not yet created (happens in the first forward pass).
-    self.assertEqual(EMPTY_PARAMETER_OVERVIEW,
-                     parameter_overview.get_parameter_overview(module))
-
-  def test_get_parameter_overview_on_module(self):
-    module = snt.Module()
-    # Weights of a 2D convolution with 2 filters..
-    module.conv = snt.Conv2D(output_channels=2, kernel_shape=3, name="conv")
-    module.conv(tf.ones((2, 5, 5, 3)))  # 3 * 3^2 * 2 = 56 parameters
-    for v in module.variables:
-      v.assign(tf.ones_like(v))
-    self.assertEqual(
-        SNT_CONV2D_PARAMETER_OVERVIEW,
-        parameter_overview.get_parameter_overview(module, include_stats=False))
-    self.assertEqual(SNT_CONV2D_PARAMETER_OVERVIEW_WITH_STATS,
-                     parameter_overview.get_parameter_overview(module))
-
-
 class CNN(nn.Module):
 
   @nn.compact
@@ -133,7 +59,7 @@ class CNN(nn.Module):
     return nn.Conv(features=2, kernel_size=(3, 3), name="conv")(x)
 
 
-class JaxParameterOverviewTest(tf.test.TestCase):
+class JaxParameterOverviewTest(absltest.TestCase):
 
   def test_count_parameters_empty(self):
     self.assertEqual(0, parameter_overview.count_parameters({}))
@@ -174,4 +100,4 @@ class JaxParameterOverviewTest(tf.test.TestCase):
 
 
 if __name__ == "__main__":
-  tf.test.main()
+  absltest.main()
