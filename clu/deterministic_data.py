@@ -436,8 +436,8 @@ def create_dataset(dataset_builder: DatasetBuilder,
 
   dataset_options = tf.data.Options()
   dataset_options.experimental_optimization.map_parallelization = True
-  dataset_options.experimental_threading.private_threadpool_size = 48
-  dataset_options.experimental_threading.max_intra_op_parallelism = 1
+  dataset_options.threading.private_threadpool_size = 48
+  dataset_options.threading.max_intra_op_parallelism = 1
 
   read_config = tfds.ReadConfig(
       shuffle_seed=rngs.pop()[0], options=dataset_options)
