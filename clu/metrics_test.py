@@ -17,6 +17,7 @@
 import functools
 from unittest import mock
 
+from absl.testing import absltest
 from absl.testing import parameterized
 import chex
 from clu import asynclib
@@ -25,7 +26,6 @@ import flax
 import jax
 import jax.numpy as jnp
 import numpy as np
-import tensorflow as tf
 
 
 @flax.struct.dataclass
@@ -53,7 +53,7 @@ class CollectionMixed(metrics.Collection):
   train_accuracy: metrics.Accuracy
 
 
-class MetricsTest(tf.test.TestCase, parameterized.TestCase):
+class MetricsTest(parameterized.TestCase):
 
   def setUp(self):
     super().setUp()
@@ -137,19 +137,19 @@ class MetricsTest(tf.test.TestCase, parameterized.TestCase):
     metric1 = metrics.LastValue.from_model_output(jnp.array([1, 2]))
     metric2 = metrics.LastValue.from_model_output(jnp.array([3, 4]))
     metric12 = jax.tree_map(lambda *args: jnp.stack(args), metric1, metric2)
-    self.assertAllEqual(metric12.reduce().compute(), metric2.compute())
+    chex.assert_trees_all_equal(metric12.reduce().compute(), metric2.compute())
 
   def test_from_fun_with_single_output(self):
 
     def accuracy(*, logits, labels, **_):
       return (logits.argmax(axis=-1) == labels).astype(jnp.float32)
 
-    self.assertAllClose(
+    chex.assert_trees_all_close(
         self.make_compute_metric(
             metrics.Average.from_fun(accuracy),
             reduce=False)(self.model_outputs), self.results["train_accuracy"])
 
-    self.assertAllClose(
+    chex.assert_trees_all_close(
         self.make_compute_metric(
             metrics.Average.from_fun(accuracy),
             reduce=False)(self.model_outputs_masked),
@@ -164,12 +164,12 @@ class MetricsTest(tf.test.TestCase, parameterized.TestCase):
     def make_accuracy_args_map(*, logits, labels, **_):
       return dict(logits=logits, labels=labels)
 
-    self.assertAllClose(
+    chex.assert_trees_all_close(
         self.make_compute_metric(
             metrics.Accuracy.from_fun(make_accuracy_args_map),
             reduce=False)(self.model_outputs), self.results["train_accuracy"])
 
-    self.assertAllClose(
+    chex.assert_trees_all_close(
         self.make_compute_metric(
             metrics.Accuracy.from_fun(make_accuracy_args_map),
             reduce=False)(self.model_outputs_masked),
@@ -192,7 +192,7 @@ class MetricsTest(tf.test.TestCase, parameterized.TestCase):
     values = jnp.asarray(values)
     if mask is not None:
       mask = jnp.asarray(mask)
-    self.assertAllClose(
+    chex.assert_trees_all_close(
         metrics.Average.from_model_output(values, mask=mask).compute(),
         expected_result)
 
@@ -212,7 +212,7 @@ class MetricsTest(tf.test.TestCase, parameterized.TestCase):
       ("_reduce", True),
   )
   def test_accuracy(self, reduce):
-    self.assertAllClose(
+    chex.assert_trees_all_close(
         self.make_compute_metric(metrics.Accuracy, reduce)(self.model_outputs),
         self.results["train_accuracy"])
 
@@ -227,11 +227,11 @@ class MetricsTest(tf.test.TestCase, parameterized.TestCase):
       ("_reduce", True),
   )
   def test_loss_average(self, reduce):
-    self.assertAllClose(
+    chex.assert_trees_all_close(
         self.make_compute_metric(metrics.Average.from_output("loss"),
                                  reduce)(self.model_outputs_masked),
         self.model_outputs_stacked["loss"].mean())
-    self.assertAllClose(
+    chex.assert_trees_all_close(
         self.make_compute_metric(
             metrics.Average.from_output("example_loss"),
             reduce)(self.model_outputs_masked),
@@ -242,12 +242,12 @@ class MetricsTest(tf.test.TestCase, parameterized.TestCase):
       ("_reduce", True),
   )
   def test_loss_std(self, reduce):
-    self.assertAllClose(
+    chex.assert_trees_all_close(
         self.make_compute_metric(metrics.Std.from_output("loss"),
                                  reduce)(self.model_outputs_masked),
         self.model_outputs_stacked["loss"].std(),
         atol=1e-4)
-    self.assertAllClose(
+    chex.assert_trees_all_close(
         self.make_compute_metric(
             metrics.Std.from_output("example_loss"),
             reduce)(self.model_outputs_masked),
@@ -256,7 +256,7 @@ class MetricsTest(tf.test.TestCase, parameterized.TestCase):
 
   def test_collection_create(self):
     collection = metrics.Collection.create(accuracy=metrics.Accuracy)
-    self.assertAllClose(
+    chex.assert_trees_all_close(
         collection.single_from_model_output(
             logits=jnp.array([[-1., 1.], [1., -1.]]),
             labels=jnp.array([0, 0]),  # i.e. 1st incorrect, 2nd correct
@@ -269,8 +269,11 @@ class MetricsTest(tf.test.TestCase, parameterized.TestCase):
             logits=jnp.array([[-1., 1.], [1., -1.]]),
             labels=jnp.array([0, 0])),  # i.e. 1st incorrect, 2nd correct)
         loss=metrics.Average.from_model_output(jnp.array([0, 1, 2])))
-    self.assertAllClose(collection.compute(), {"accuracy": 0.5, "loss": 1})
-    self.assertAllClose(
+    chex.assert_trees_all_close(collection.compute(), {
+        "accuracy": 0.5,
+        "loss": 1
+    })
+    chex.assert_trees_all_close(
         {k: v.value for k, v in collection.compute_values().items()}, {
             "accuracy": 0.5,
             "loss": 1
@@ -289,7 +292,7 @@ class MetricsTest(tf.test.TestCase, parameterized.TestCase):
         collection = collection.merge(update)
       return collection.compute()
 
-    self.assertAllClose(
+    chex.assert_trees_all_close(
         jax.jit(compute_collection)(
             self.model_outputs_masked if masked else self.model_outputs),
         self.results_masked if masked else self.results)
@@ -313,7 +316,7 @@ class MetricsTest(tf.test.TestCase, parameterized.TestCase):
       collection = Collection.gather_from_model_output(**model_outputs[0])
       return collection.compute()
 
-    self.assertAllClose(
+    chex.assert_trees_all_close(
         jax.jit(compute_collection)(
             self.model_outputs_masked if masked else self.model_outputs),
         self.results_masked if masked else self.results)
@@ -329,7 +332,7 @@ class MetricsTest(tf.test.TestCase, parameterized.TestCase):
       return Collection.gather_from_model_output(**model_outputs)
 
     if jax.local_device_count() > 1:
-      self.assertAllClose(
+      chex.assert_trees_all_close(
           compute_collection(
               self.model_outputs_masked_stacked if masked else self
               .model_outputs_stacked).unreplicate().compute(),
@@ -353,7 +356,7 @@ class MetricsTest(tf.test.TestCase, parameterized.TestCase):
     result = self.make_compute_metric(
         metric_class, reduce=False, jit=False)(
             self.model_outputs)
-    self.assertAllClose(result, {
+    chex.assert_trees_all_close(result, {
         "logits": logits,
         "loss": loss,
     })
@@ -362,7 +365,7 @@ class MetricsTest(tf.test.TestCase, parameterized.TestCase):
     metric_class = metrics.CollectingMetric.from_outputs(("value",))
     metric = jax.jit(metric_class.from_model_output)(value=jnp.ones([8, 2, 4]))
     reduced = metric.reduce()
-    self.assertAllClose(reduced.compute(), {"value": np.ones([16, 4])})
+    chex.assert_trees_all_close(reduced.compute(), {"value": np.ones([16, 4])})
 
   def test_collecting_metric_async(self):
     metric = CollectingMetricAccuracy.empty()
@@ -377,7 +380,7 @@ class MetricsTest(tf.test.TestCase, parameterized.TestCase):
       merge(jax.jit(CollectingMetricAccuracy.from_model_output)(**model_output))
     pool.join()
     result = metric.compute()
-    self.assertAllClose(result, 0.75)
+    chex.assert_trees_all_close(result, 0.75)
 
   def test_collecting_metric_tracer(self):
     metric_class = metrics.CollectingMetric.from_outputs(("logits",))
@@ -399,7 +402,7 @@ class MetricsTest(tf.test.TestCase, parameterized.TestCase):
       merge(jax.jit(CollectionMixed.single_from_model_output)(**model_output))
     pool.join()
     result = metric.compute()
-    self.assertAllClose(result, {
+    chex.assert_trees_all_close(result, {
         "collecting_metric_accuracy": 0.75,
         "train_accuracy": 0.75,
     })
@@ -423,4 +426,4 @@ class MetricsTest(tf.test.TestCase, parameterized.TestCase):
 
 
 if __name__ == "__main__":
-  tf.test.main()
+  absltest.main()
