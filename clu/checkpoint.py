@@ -100,7 +100,7 @@ def load_state_dict(base_directory) -> Dict[str, Any]:
   Raises:
     FileNotFoundError: If there is no checkpoint to restore.
   """
-  return Checkpoint(base_directory).restore(state=None)
+  return Checkpoint(base_directory).load_state(state=None)
 
 
 class CheckpointInfo(
@@ -368,6 +368,45 @@ class Checkpoint:
     """
     return self.restore(state=None, checkpoint=checkpoint)
 
+  def _checkpoint_or_latest(self, checkpoint: Optional[str] = None) -> str:
+    if checkpoint is None:
+      checkpoint = self.get_latest_checkpoint_to_restore_from()
+      if checkpoint is None:
+        raise FileNotFoundError(f"No checkpoint found at {self.base_directory}")
+    return checkpoint
+
+  def load_state(self,
+                 state: Optional[T],
+                 checkpoint: Optional[str] = None) -> T:
+    """Restores Flax state the latest checkpoint.
+
+    As opposed to `.restore()`, this function only reads the Flax checkpint and
+    does not read the (potentially very large) TensorFlow state.
+
+    Args:
+      state : Template data structure that will serve as a template for the
+        returned state. If the loaded data does not match that template, then an
+        exception is raised. It's also possible to specify `state=None`, in
+        which case a dictionary will be returned. See
+        `flax.serialization.from_state_dict()` for details.
+      checkpoint: Checkpoint name that should be restored. Defaults to latest
+        available checkpoint. See `.latest_checkpoint` for a description of the
+        format of this string.
+
+    Returns:
+      The restored `state` object. Note that all TensorFlow `Trackable`s in
+      `tf_state` (see `__init__()`) are also updated.
+
+    Raises:
+      FileNotFoundError: If specified checkpoint does not exist, or if there
+      is no checkpoint to restore in case no checkpoint was specified.
+    """
+    flax_path = self._flax_path(self._checkpoint_or_latest(checkpoint))
+    if not tf.io.gfile.exists(flax_path):
+      raise FileNotFoundError(f"Checkpoint {checkpoint} does not exist")
+    with tf.io.gfile.GFile(flax_path, "rb") as f:
+      return flax.serialization.from_bytes(state, f.read())
+
   def restore(self,
               state: Optional[T],
               checkpoint: Optional[str] = None) -> T:
@@ -394,18 +433,10 @@ class Checkpoint:
       FileNotFoundError: If specified checkpoint does not exist, or if there
       is no checkpoint to restore in case no checkpoint was specified.
     """
-    if checkpoint is None:
-      checkpoint = self.get_latest_checkpoint_to_restore_from()
-      if checkpoint is None:
-        raise FileNotFoundError(f"No checkpoint found at {self.base_directory}")
-    if not tf.io.gfile.exists(self._flax_path(checkpoint)):
-      raise FileNotFoundError(f"Checkpoint {checkpoint} does not exist")
-
+    checkpoint = self._checkpoint_or_latest(checkpoint)
     logging.info("Restoring checkpoint: %s", checkpoint)
+    state = self.load_state(state, checkpoint)
     self.tf_checkpoint.restore(checkpoint)
-    flax_path = self._flax_path(checkpoint)
-    with tf.io.gfile.GFile(flax_path, "rb") as f:
-      state = flax.serialization.from_bytes(state, f.read())
 
     logging.info("Restored save_counter=%d restored_checkpoint=%s",
                  self.tf_checkpoint.save_counter.numpy(),
