@@ -169,7 +169,9 @@ class MetricWriterTest(tf.test.TestCase, parameterized.TestCase):
     writer.write_images.assert_called_once_with(step,
                                                 _to_summary(image_metrics))
     writer.write_histograms.assert_called_once_with(
-        step, _to_summary(histogram_metrics), num_buckets=num_buckets)
+        step,
+        _to_summary(histogram_metrics),
+        num_buckets={k: v.num_buckets for k, v in histogram_metrics.items()})
     writer.write_audios.assert_called_with(
         step,
         ONEOF(_to_list_of_dicts(_to_summary(audio_metrics))),

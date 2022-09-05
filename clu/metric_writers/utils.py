@@ -63,6 +63,7 @@ def write_values(writer: MetricWriter, step: int,
     metrics: Mapping from name to clu.values.Value object.
   """
   writes = collections.defaultdict(dict)
+  histogram_num_buckets = collections.defaultdict(dict)
   for k, v in metrics.items():
     if isinstance(v, values.Summary):
       writes[(writer.write_summaries, frozenset({"metadata": v.metadata
@@ -79,8 +80,8 @@ def write_values(writer: MetricWriter, step: int,
     elif isinstance(v, values.HyperParam):
       writes[(writer.write_hparams, frozenset())][k] = v.value
     elif isinstance(v, values.Histogram):
-      writes[(writer.write_histograms,
-              frozenset({"num_buckets": v.num_buckets}.items()))][k] = v.value
+      writes[(writer.write_histograms, frozenset())][k] = v.value
+      histogram_num_buckets[k] = v.num_buckets
     elif isinstance(v, values.Audio):
       writes[(writer.write_audios,
               frozenset({"sample_rate": v.sample_rate}.items()))][k] = v.value
@@ -88,7 +89,11 @@ def write_values(writer: MetricWriter, step: int,
       raise ValueError("Metric: ", k, " has unsupported value: ", v)
 
   for (fn, extra_args), vals in writes.items():
-    fn(step, vals, **dict(extra_args))
+    if fn == writer.write_histograms:
+      # for write_histograms, the num_buckets arg is a Dict indexed by name
+      fn(step, vals, num_buckets=histogram_num_buckets)
+    else:
+      fn(step, vals, **dict(extra_args))
 
 
 def create_default_writer(
