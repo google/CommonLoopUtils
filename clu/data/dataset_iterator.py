@@ -28,15 +28,19 @@ use `tf.data` they can simply wrap their `tf.data.Dataset` object with
 from __future__ import annotations
 
 import abc
+import collections.abc
 import dataclasses
 import functools
+import os
 import typing
-from typing import Any, Dict, Mapping, Optional, Tuple, Union
+from typing import Any, Mapping, Optional, Sequence, Tuple, TypeVar, Union
 
+from absl import logging
 from etils import epath
 import jax.numpy as jnp  # Just for type checking.
 import numpy as np
 
+Array = Union[np.ndarray, jnp.ndarray]
 DType = np.dtype
 # Sizes of dimensions, None means the dimension size is unknown.
 Shape = Tuple[Optional[int], ...]
@@ -55,13 +59,20 @@ class ArraySpec:
     return f"{np.dtype(self.dtype).name}{list(self.shape)}"
 
 
-# Elements are dictionaries with NumPy/JAX arrays.
-Array = Union[np.ndarray, jnp.ndarray]
-Element = Dict[str, Array]
-ElementSpec = Mapping[str, ArraySpec]
+# Elements are PyTrees with NumPy/JAX arrays.
+
+# Anything can be a PyTree (it's either a container or leaf). We define
+# PyTree[T] as a PyTree where all leaves are of type T.
+# See https://jax.readthedocs.io/en/latest/pytrees.html.
+L = TypeVar("L")  # pylint: disable=invalid-name
+
+PyTree = Union[L, Sequence["PyTree[L]"], Mapping[str, "PyTree[L]"]]
+
+Element = PyTree[Array]
+ElementSpec = PyTree[ArraySpec]
 
 
-class DatasetIterator(abc.ABC):
+class DatasetIterator(collections.abc.Iterator):  # pytype: disable=ignored-abstractmethod
   """Generic interface for iterating over a dataset.
 
   This does not support __getitem__ since it cannot be implemented efficiently
@@ -76,45 +87,45 @@ class DatasetIterator(abc.ABC):
   restarted from the step number).
   """
 
-  @abc.abstractmethod
   def get_next(self) -> Element:
     """Returns the next element."""
+    return next(self)
 
   def __next__(self) -> Element:
     return self.get_next()
 
-  def __iter__(self) -> DatasetIterator:
-    return self
-
-  @abc.abstractmethod
   def reset(self):
     """Resets the iterator back to the beginning."""
+    raise NotImplementedError
 
   @property
   @abc.abstractmethod
   def element_spec(self) -> ElementSpec:
     """Returns the spec elements."""
+    raise NotImplementedError()
 
-  def save(self, filename: epath.PathLike):
+  def save(self, filename: epath.Path):
     """Saves the state of the iterator to a file.
 
     This should only handle this iterator - not iterators in other processes.
 
     Args:
-      filename: Name of the checkpoint. The file must be created by the method.
+      filename: Name of the checkpoint.
     """
     raise NotImplementedError
 
-  def load(self, filename: epath.PathLike):
+  def restore(self, filename: epath.Path):
     """Restores the iterator from a file (if available).
 
     This should only handle this iterator - not iterators in other processes.
 
     Args:
-      filename: Name of the checkpoint. The method can assume that the file
-        exists.
+      filename: Name of the checkpoint.
     """
-    raise NotImplementedError
+
+  def load(self, filename: epath.Path):
+    logging.error("DatasetIterator.load() is deprecated. Please use restore().")
+    return self.restore(filename)
 
 
 class TfDatasetIterator(DatasetIterator):
@@ -158,6 +169,9 @@ class TfDatasetIterator(DatasetIterator):
     self._ckpt = tf.train.Checkpoint(ds=self.iterator)
 
   def get_next(self) -> Element:
+    return next(self)
+
+  def __next__(self) -> Element:
     return {k: np.asarray(v) for k, v in next(self.iterator).items()}
 
   def reset(self):
@@ -182,10 +196,10 @@ class TfDatasetIterator(DatasetIterator):
         for k, v in element_spec.items()
     }
 
-  def save(self, filename: epath.PathLike):
+  def save(self, filename: epath.Path):
     if self._checkpoint:
-      self._ckpt.write(str(filename))
+      self._ckpt.write(os.fspath(filename))
 
-  def load(self, filename: epath.PathLike):
+  def restore(self, filename: epath.Path):
     if self._checkpoint:
-      self._ckpt.read(str(filename)).assert_consumed()
+      self._ckpt.read(os.fspath(filename)).assert_consumed()
