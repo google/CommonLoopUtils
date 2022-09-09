@@ -76,7 +76,7 @@ class DatasetIteratorTest(tf.test.TestCase):
 
     it = self._create_iterator(0, checkpoint=False)
     self.assertEqual(next(it), {INDEX: [0, 2], "prime": [2, 5]})
-    it.load(filename)  # Should be a no-op, iterator just continues.
+    it.restore(filename)  # Should be a no-op, iterator just continues.
     self.assertEqual(next(it), {INDEX: [4, 5], "prime": [11, 13]})
 
 
