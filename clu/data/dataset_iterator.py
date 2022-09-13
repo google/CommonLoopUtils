@@ -94,11 +94,6 @@ class DatasetIterator(collections.abc.Iterator):  # pytype: disable=ignored-abst
     # Subclasses should implement __next__() and remove calls to get_next().
     return next(self)
 
-  def __next__(self) -> Element:
-    # Warning: We temporarily provide a default implementation here. The next
-    # CL will remove this. Subclasses should implement __next__().
-    return self.get_next()
-
   def reset(self):
     """Resets the iterator back to the beginning."""
     raise NotImplementedError
