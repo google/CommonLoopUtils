@@ -136,8 +136,7 @@ class TfDatasetIterator(DatasetIterator):
     """Wraps `tf.data.Dataset` object into the `DatasetIterator` interface.
 
     Warning: Do not wrap this interator to do asynchronous prefetching if you
-    use `checkpoint=True` (default). tf.data iterators must be saved()
-    synchronously.
+    use `checkpoint=True`. tf.data iterators must be saved() synchronously.
 
     Args:
       dataset: The dataset to wrap. Elements are converted to NumPy arrays but
@@ -164,7 +163,7 @@ class TfDatasetIterator(DatasetIterator):
       raise ValueError("`dataset` must be an instance of `tf.data.Dataset` "
                        f"but got {type(dataset)}.")
     self._dataset = dataset
-    self._checkpoint = checkpoint
+    self.checkpoint = checkpoint
     assert self.element_spec  # Verify element spec.
     self.iterator = iter(dataset)
     self._ckpt = tf.train.Checkpoint(ds=self.iterator)
@@ -198,9 +197,13 @@ class TfDatasetIterator(DatasetIterator):
     }
 
   def save(self, filename: epath.Path):
-    if self._checkpoint:
+    if self.checkpoint:
       self._ckpt.write(os.fspath(filename))
+    else:
+      logging.warning("Saving is disabled for this iterator.")
 
   def restore(self, filename: epath.Path):
-    if self._checkpoint:
+    if self.checkpoint:
       self._ckpt.read(os.fspath(filename)).assert_consumed()
+    else:
+      logging.warning("Restoring is disabled for this iterator.")
