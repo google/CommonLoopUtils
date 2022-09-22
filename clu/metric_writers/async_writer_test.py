@@ -17,6 +17,7 @@
 import time
 from unittest import mock
 
+from clu import asynclib
 from clu.metric_writers import async_writer
 from clu.metric_writers import interface
 import numpy as np
@@ -126,7 +127,7 @@ class AsyncWriterTest(tf.test.TestCase):
     self.sync_writer.write_scalars.side_effect = ValueError("foo")
     self.writer.write_scalars(0, {"a": 3, "b": 0.15})
     time.sleep(0.1)
-    with self.assertRaisesRegex(ValueError, "foo"):
+    with self.assertRaisesRegex(asynclib.AsyncError, "Consider re-running"):
       self.writer.write_scalars(2, {"a": 5, "b": 0.007})
 
 

@@ -45,7 +45,7 @@ class AsyncWriterTest(tf.test.TestCase):
 
     error()
     self.assertTrue(pool.has_errors)
-    with self.assertRaisesRegex(ValueError, "test"):
+    with self.assertRaisesRegex(asynclib.AsyncError, "test"):
       pool.join()
     self.assertFalse(pool.has_errors)
 
@@ -55,7 +55,7 @@ class AsyncWriterTest(tf.test.TestCase):
 
     error()
     self.assertTrue(pool.has_errors)
-    with self.assertRaisesRegex(ValueError, "test"):
+    with self.assertRaisesRegex(asynclib.AsyncError, "test"):
       noop()
     self.assertFalse(pool.has_errors)
 
