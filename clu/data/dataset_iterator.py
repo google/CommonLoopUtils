@@ -132,7 +132,7 @@ class DatasetIterator(collections.abc.Iterator):  # pytype: disable=ignored-abst
 class TfDatasetIterator(DatasetIterator):
   """DatasetIterator for wrapping a `tf.data.Dataset`."""
 
-  def __init__(self, dataset, checkpoint: bool = False):
+  def __init__(self, dataset, *, checkpoint: Optional[bool] = None):
     """Wraps `tf.data.Dataset` object into the `DatasetIterator` interface.
 
     Warning: Do not wrap this interator to do asynchronous prefetching if you
@@ -148,6 +148,11 @@ class TfDatasetIterator(DatasetIterator):
         pre-emptions but depending on your input pipeline can result in very
         large checkpoints. If set to False save() and load() are no-ops.
     """
+    if checkpoint is None:
+      logging.error("Please pass a value (other than None) for the "
+                    "`checkpoint` argument. We will soon remove the default "
+                    "(False).")
+      checkpoint = False
     try:
       # Since this is the only class in this module using TF we only import
       # tensorflow if needed.
