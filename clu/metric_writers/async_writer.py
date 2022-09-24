@@ -28,9 +28,23 @@ from clu import asynclib
 
 from clu.metric_writers import interface
 from clu.metric_writers import multi_writer
+import wrapt
 
 Array = interface.Array
 Scalar = interface.Scalar
+
+
+@wrapt.decorator
+def _wrap_exceptions(wrapped, instance, args, kwargs):
+  del instance
+  try:
+    return wrapped(*args, **kwargs)
+  except asynclib.AsyncError as e:
+    raise asynclib.AsyncError(
+        "Consider re-running the code without AsyncWriter (e.g. creating a "
+        "writer using "
+        "`clu.metric_writers.create_default_writer(asynchronous=False)`)"
+    ) from e
 
 
 class AsyncWriter(interface.MetricWriter):
@@ -59,6 +73,7 @@ class AsyncWriter(interface.MetricWriter):
         thread_name_prefix="AsyncWriter", max_workers=num_workers)
 
 
+  @_wrap_exceptions
   def write_summaries(
       self, step: int,
       values: Mapping[str, Array],
@@ -66,23 +81,29 @@ class AsyncWriter(interface.MetricWriter):
     self._pool(self._writer.write_summaries)(
         step=step, values=values, metadata=metadata)
 
+  @_wrap_exceptions
   def write_scalars(self, step: int, scalars: Mapping[str, Scalar]):
     self._pool(self._writer.write_scalars)(step=step, scalars=scalars)
 
+  @_wrap_exceptions
   def write_images(self, step: int, images: Mapping[str, Array]):
     self._pool(self._writer.write_images)(step=step, images=images)
 
+  @_wrap_exceptions
   def write_videos(self, step: int, videos: Mapping[str, Array]):
     self._pool(self._writer.write_videos)(step=step, videos=videos)
 
+  @_wrap_exceptions
   def write_audios(
       self, step: int, audios: Mapping[str, Array], *, sample_rate: int):
     self._pool(self._writer.write_audios)(
         step=step, audios=audios, sample_rate=sample_rate)
 
+  @_wrap_exceptions
   def write_texts(self, step: int, texts: Mapping[str, str]):
     self._pool(self._writer.write_texts)(step=step, texts=texts)
 
+  @_wrap_exceptions
   def write_histograms(self,
                        step: int,
                        arrays: Mapping[str, Array],
@@ -90,6 +111,7 @@ class AsyncWriter(interface.MetricWriter):
     self._pool(self._writer.write_histograms)(
         step=step, arrays=arrays, num_buckets=num_buckets)
 
+  @_wrap_exceptions
   def write_hparams(self, hparams: Mapping[str, Any]):
     self._pool(self._writer.write_hparams)(hparams=hparams)
 

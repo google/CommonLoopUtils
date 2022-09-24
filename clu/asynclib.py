@@ -24,6 +24,10 @@ from typing import Callable, List, Optional
 from absl import logging
 
 
+class AsyncError(Exception):
+  """An exception that wraps another exception that ocurred asynchronously."""
+
+
 class Pool:
   """Pool for wrapping functions to be executed asynchronously.
 
@@ -66,7 +70,8 @@ class Pool:
     if self._errors:
       with self._errors_mutex:
         exc_info = self._errors.popleft()
-      raise exc_info[1].with_traceback(exc_info[2])
+      exc = exc_info[1].with_traceback(exc_info[2])
+      raise AsyncError(f"Error '{exc}' occurred ASYNCHRONOUSLY.") from exc
 
   def close(self) -> None:
     """Closes this pool & raise a pending exception (if needed)."""
