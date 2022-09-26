@@ -617,7 +617,7 @@ class Average(Metric):
     # Broadcast mask to the same number of dimensions as values.
     if mask.ndim < values.ndim:
       mask = jnp.expand_dims(
-          mask, axis=tuple(jnp.arange(mask.ndim, values.ndim)))
+          mask, axis=tuple(np.arange(mask.ndim, values.ndim)))
     mask = mask.astype(bool)
     utils.check_param(mask, dtype=bool, ndim=values.ndim)
     return cls(
