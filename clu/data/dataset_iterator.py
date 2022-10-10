@@ -30,7 +30,6 @@ from __future__ import annotations
 import abc
 import collections.abc
 import dataclasses
-import functools
 import os
 import typing
 from typing import Any, Mapping, Optional, Sequence, Tuple, TypeVar, Union
@@ -179,7 +178,7 @@ class TfDatasetIterator(DatasetIterator):
     self.iterator = iter(self._dataset)
     self._ckpt = self._tf.train.Checkpoint(ds=self.iterator)
 
-  @functools.cached_property
+  @property
   def element_spec(self) -> ElementSpec:
     element_spec = self._dataset.element_spec
     if not isinstance(element_spec, dict):
