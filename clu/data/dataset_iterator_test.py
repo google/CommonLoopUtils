@@ -79,6 +79,13 @@ class DatasetIteratorTest(tf.test.TestCase):
     it.restore(filename)  # Should be a no-op, iterator just continues.
     self.assertEqual(next(it), {INDEX: [4, 5], "prime": [11, 13]})
 
+  def test_peekable_dataset_iterator(self):
+    it = self._create_iterator(0)
+    it = dataset_iterator.PeekableDatasetIterator(it)
+    self.assertEqual(it.peek(), {INDEX: [0, 2], "prime": [2, 5]})
+    self.assertEqual(next(it), {INDEX: [0, 2], "prime": [2, 5]})
+    self.assertEqual(next(it), {INDEX: [4, 5], "prime": [11, 13]})
+
 
 if __name__ == "__main__":
   tf.test.main()

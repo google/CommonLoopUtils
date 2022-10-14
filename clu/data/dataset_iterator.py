@@ -203,3 +203,52 @@ class TfDatasetIterator(DatasetIterator):
   def restore(self, filename: epath.Path):
     if self._checkpoint:
       self._ckpt.read(os.fspath(filename)).assert_consumed()
+
+
+class PeekableDatasetIterator(DatasetIterator):
+  """Wraps a DatasetIterator to provide a peek() method.
+
+  This allows to look at the next element which can be useful in 2 scenarios:
+  a) Get the structure of elements if the element_spec property is not
+     supported.
+  b) Request the next element without consuming it. This is especially handy to
+     trigger reading of the first element while the model is being initialized.
+
+  Example use case:
+  >>> pool = clu.asynclib.Pool()
+  >>> @pool
+  >>> def warmup_input_pipeline():
+  >>>   train_iter.peek()
+  >>> first_batch_ready = warmup_input_pipeline()
+  >>> # Do other stuff...
+  >>> first_batch_ready.result()  # wait for input pipeline to be ready.
+  """
+
+  def __init__(self, it: DatasetIterator):
+    self._it = it
+    self._peek: Optional[Element] = None
+
+  def __next__(self) -> Element:
+    if self._peek is None:
+      return next(self._it)
+    peek = self._peek
+    self._peek = None
+    return peek
+
+  def reset(self):
+    self._it.reset()
+
+  @property
+  def element_spec(self) -> ElementSpec:
+    return self._it.element_spec
+
+  def peek(self) -> Element:
+    if self._peek is None:
+      self._peek = next(self)
+    return self._peek
+
+  def save(self, filename: epath.Path):
+    self._it.save(filename)
+
+  def restore(self, filename: epath.Path):
+    self._it.restore(filename)
