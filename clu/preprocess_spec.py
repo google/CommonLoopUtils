@@ -89,6 +89,7 @@ class PreprocessOp(Protocol):
     """Applies the preprocessing op to the features."""
 
 
+# Deprecated. Please use `grain.tensorflow.MapTransform`.
 class MapTransform(abc.ABC):
   """Base class for transformations of single elements.
 
@@ -117,6 +118,8 @@ class MapTransform(abc.ABC):
 
   def __call__(self, features: D) -> D:
     """Applies the transformation to the features or the dataset."""
+    logging.warning("clu.preprocess_spec.MapTransform is deprecated. Please "
+                    "switch to grain.tensorflow.MapTransform.")
     if isinstance(features, tf.data.Dataset):
       return features.map(self._transform, num_parallel_calls=tf.data.AUTOTUNE)
     return self._transform(features)
@@ -126,6 +129,7 @@ class MapTransform(abc.ABC):
     """Transforms the features."""
 
 
+# Deprecated. Please use `grain.tensorflow.RandomMapTransform`.
 class RandomMapTransform(MapTransform, abc.ABC):
   """Base class for random transformations of single elements.
 
@@ -141,6 +145,8 @@ class RandomMapTransform(MapTransform, abc.ABC):
   """
 
   def __call__(self, features: D) -> D:
+    logging.warning("clu.preprocess_spec.RandomMapTransform is deprecated. "
+                    "Please switch to grain.tensorflow.RandomMapTransform.")
     if isinstance(features, tf.data.Dataset):
       return features.map(self, num_parallel_calls=tf.data.AUTOTUNE)
 
@@ -155,9 +161,12 @@ class RandomMapTransform(MapTransform, abc.ABC):
     """Transforms the features only using stateless random ops."""
 
 
+# Deprecated. Please use `grain.tensorflow.FilterMapTransform`.
 class FilterTransform(abc.ABC):
 
   def __call__(self, dataset: tf.data.Dataset) -> tf.data.Dataset:
+    logging.warning("clu.preprocess_spec.FilterTransform is deprecated. Please "
+                    "switch to grain.tensorflow.FilterTransform.")
     return dataset.filter(self._predicate)
 
   @abc.abstractmethod
