@@ -12,10 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Common utilities for loading data for JAX users.
+"""DatasetIterator is an interface for input pipelines."""
+# pylint: disable=g-multiple-import
+# pylint: disable=unused-import
 
-This will long term replace clu.deterministic_data.
-"""
-
-from clu.data.dataset_iterator import DatasetIterator
-from clu.data.dataset_iterator import TfDatasetIterator
+from clu.data.dataset_iterator import (
+    Array,
+    ArraySpec,
+    DatasetIterator,
+    Element,
+    ElementSpec,
+    TfDatasetIterator,
+    PeekableDatasetIterator,
+    PyTree,
+)

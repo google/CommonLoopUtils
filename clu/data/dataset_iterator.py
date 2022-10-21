@@ -29,12 +29,14 @@ from __future__ import annotations
 
 import abc
 import collections.abc
+import concurrent.futures
 import dataclasses
 import os
 import typing
 from typing import Any, Mapping, Optional, Sequence, Tuple, TypeVar, Union
 
 from absl import logging
+from clu import asynclib
 from etils import epath
 import jax.numpy as jnp  # Just for type checking.
 import numpy as np
@@ -227,8 +229,12 @@ class PeekableDatasetIterator(DatasetIterator):
   def __init__(self, it: DatasetIterator):
     self._it = it
     self._peek: Optional[Element] = None
+    self._peek_future = None
 
   def __next__(self) -> Element:
+    if self._peek_future:
+      self._peek_future.result()
+      self._peek_future = None
     if self._peek is None:
       return next(self._it)
     peek = self._peek
@@ -243,9 +249,35 @@ class PeekableDatasetIterator(DatasetIterator):
     return self._it.element_spec
 
   def peek(self) -> Element:
+    """Returns the next element without consuming it.
+
+    This will get the next element from the underlying iterator. The element
+    is stored and return on the next call of __next__().
+
+    Returns:
+      The next element.
+    """
     if self._peek is None:
       self._peek = next(self)
     return self._peek
+
+  def peek_async(self) -> concurrent.futures.Future[Element]:
+    """Same as peek() but returns the Future of the element.
+
+    Users can call this to warm up the iterator.
+
+    Returns:
+      Future with the next element. The element is also kept and returned on the
+      next call of __next__().
+    """
+    pool = asynclib.Pool()
+
+    @pool
+    def async_peek():
+      return self.peek()
+
+    self._peek_future = async_peek()
+    return self._peek_future
 
   def save(self, filename: epath.Path):
     self._it.save(filename)
