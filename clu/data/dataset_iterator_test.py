@@ -86,6 +86,14 @@ class DatasetIteratorTest(tf.test.TestCase):
     self.assertEqual(next(it), {INDEX: [0, 2], "prime": [2, 5]})
     self.assertEqual(next(it), {INDEX: [4, 5], "prime": [11, 13]})
 
+  def test_peekable_dataset_iterator_async(self):
+    it = self._create_iterator(0)
+    it = dataset_iterator.PeekableDatasetIterator(it)
+    it.peek_async()
+    self.assertEqual(next(it), {INDEX: [0, 2], "prime": [2, 5]})
+    self.assertEqual(next(it), {INDEX: [0, 2], "prime": [2, 5]})
+    self.assertEqual(next(it), {INDEX: [4, 5], "prime": [11, 13]})
+
 
 if __name__ == "__main__":
   tf.test.main()
