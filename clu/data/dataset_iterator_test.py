@@ -13,9 +13,11 @@
 # limitations under the License.
 
 """Tests for dataset_iterator."""
+import itertools
 import pathlib
 import tempfile
 
+from absl.testing import parameterized
 from clu.data import dataset_iterator
 import numpy as np
 import tensorflow as tf
@@ -23,7 +25,7 @@ import tensorflow as tf
 INDEX = "_index"
 
 
-class DatasetIteratorTest(tf.test.TestCase):
+class DatasetIteratorTest(parameterized.TestCase, tf.test.TestCase):
 
   def _create_iterator(self, start_index: int, checkpoint: bool = True):
     """Create an iterator over some prime numbers with index."""
@@ -83,6 +85,20 @@ class DatasetIteratorTest(tf.test.TestCase):
     it = self._create_iterator(0)
     it = dataset_iterator.PeekableDatasetIterator(it)
     self.assertEqual(it.peek(), {INDEX: [0, 2], "prime": [2, 5]})
+    self.assertEqual(next(it), {INDEX: [0, 2], "prime": [2, 5]})
+    self.assertEqual(next(it), {INDEX: [4, 5], "prime": [11, 13]})
+
+  @parameterized.parameters(itertools.product([True, False], [True, False]))
+  def test_peekable_dataset_iterator_async(self, wait: bool, peek_first: bool):
+    it = self._create_iterator(0)
+    it = dataset_iterator.PeekableDatasetIterator(it)
+    future = it.peek_async()
+    self.assertIsNone(it._peek)
+    if wait:
+      future.result()
+      self.assertIsNotNone(it._peek)
+    if peek_first:
+      self.assertEqual(it.peek(), {INDEX: [0, 2], "prime": [2, 5]})
     self.assertEqual(next(it), {INDEX: [0, 2], "prime": [2, 5]})
     self.assertEqual(next(it), {INDEX: [4, 5], "prime": [11, 13]})
 
