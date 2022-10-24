@@ -25,6 +25,7 @@ import re
 from typing import Any, List, Mapping, Optional, Tuple, Union
 
 from absl import flags
+from absl import logging
 from clu import values
 from clu.metric_writers.async_writer import AsyncMultiWriter
 from clu.metric_writers.interface import MetricWriter
