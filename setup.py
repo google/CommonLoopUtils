@@ -53,6 +53,7 @@ setup(
         "packaging",
         "tensorflow",
         "tensorflow_datasets",
+        "typing_extensions",
     ],
     tests_require=tests_require,
     extras_require=dict(test=tests_require, pytorch=pytorch_require),

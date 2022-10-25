@@ -41,13 +41,15 @@ import dataclasses
 import inspect
 import re
 import sys
-import typing
-from typing import Dict, List, Protocol, Sequence, Tuple, Type, TypeVar, Union
+from typing import Dict, List, Sequence, Tuple, Type, TypeVar, Union
 
 from absl import logging
 from flax import traverse_util
 import jax.numpy as jnp
 import tensorflow as tf
+import typing_extensions
+from typing_extensions import Protocol
+
 
 # Feature dictionary. Arbitrary nested dictionary with string keys and
 # tf.Tensor as leaves.
@@ -71,7 +73,7 @@ SEED_KEY = "_seed"
 _CAMEL_CASE_RGX = re.compile(r"(?<!^)(?=[A-Z])")
 
 
-@typing.runtime_checkable
+@typing_extensions.runtime_checkable
 class PreprocessOp(Protocol):
   """Interface for all preprocess functions that transform `Features`.
 
