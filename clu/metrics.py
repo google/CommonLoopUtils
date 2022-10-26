@@ -174,6 +174,25 @@ class Metric:
     created by this function to be used both with values that exist per-example,
     as well as with values that only exist per batch.
 
+    NOTE: If `fun` returns a `Mapping` with key "mask", then this mask will
+    override a "mask" key passed to `from_model_output`.  This allows
+    `fun` to read custom mask fields from `model_output`.
+
+    Example:
+
+    ```
+    def get_head1(head1_loss, head1_mask, **_):
+      return dict(loss=head1_loss, mask=head1_mask)
+
+    @flax.struct.dataclass
+    class MultiHeadMetrics(metrics.Collection):
+      head1_loss: metrics.Average.from_output("loss").from_fun(get_head1)
+      ...
+
+    ms = MultiHeadMetrics.single_from_model_output(
+        head1_loss=..., head1_mask=..., ...)
+    ```
+
     Args:
       fun: Function to be applied to model output.
 
@@ -191,6 +210,15 @@ class Metric:
       def from_model_output(cls, **model_output) -> Metric:
         mask = model_output.get("mask")
         output = fun(**model_output)
+        if isinstance(output, Mapping) and "mask" in output:
+          output = dict(output)
+          # pop mask to avoid multiple arg error later.
+          output_mask = output.pop("mask", None)
+          if mask is not None:
+            raise ValueError(
+                "fun %s provided a mask, but a 'mask' field was already "
+                "given in the model output" % (fun,))
+          mask = output_mask
         # Ignore the mask if its first dimension doesn't match that of the
         # output of `fun`.
         if mask is not None:
