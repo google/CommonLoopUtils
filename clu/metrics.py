@@ -212,28 +212,32 @@ class Metric:
     return FromFun
 
   @classmethod
-  def from_output(cls, name: str):  # pylint: disable=g-bare-generic
+  def from_output(cls, name: str, mask_name: str = "mask"):  # pylint: disable=g-bare-generic
     """Calls `cls.from_model_output` with model output named `name`.
 
     Synopsis:
 
       @flax.struct.dataclass
       class Metrics(Collection):
-        loss: Average.from_output('loss')
+        loss: Average.from_output('loss', mask_name='mask')
 
-    Note that the model output "mask" will also be forwarded to the metric, but
-    only if it has the same first dimension as the model output specified by
-    `name`. This allows to use metrics created by this function both with named
-    outputs that exist per-example, as well as with model outputs that only
-    exist per batch (as for example "loss" often does).
+    Note that the model output given by `mask_name` will also be forwarded to
+    the metric, but only if (1) it is provided and (2) it has the same first
+    dimension as the model output specified by `name`. This allows to use
+    metrics created by this function both with named outputs that exist
+    per-example, as well as with model outputs that only exist per batch
+    (as for example "loss" often does).
 
     Args:
       name: Name of the model output that should be passed as first argument to
         `cls.from_model_output()`.
+      mask_name: Name of the mask that should be passed to
+         `cls.from_model_output()` (if provided by model output).
 
     Returns:
       A `Metric` derived from `cls` that calls `.from_model_output()` with as
-      a first argument the model output specified by `name`.
+      a first argument the model output specified by `name` and as the mask
+      argument the model output specified by `mask_name` (if available).
     """
 
     @flax.struct.dataclass
@@ -243,11 +247,11 @@ class Metric:
       @classmethod
       def from_model_output(cls, **model_output) -> Metric:
         output = jnp.array(model_output[name])
-        mask = model_output.get("mask")
+        mask = model_output.get(mask_name)
         if mask is not None and (output.shape or [0])[0] != mask.shape[0]:
           logging.warning(
               "Ignoring mask for model output '%s' because of shape mismatch: "
-              "output.shape=%s vs. mask.shape=%s", name, output.shape,
+              "output.shape=%s vs. %s.shape=%s", name, output.shape, mask_name,
               mask.shape)
           mask = None
         return super().from_model_output(output, mask=mask)

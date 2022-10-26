@@ -195,6 +195,12 @@ class MetricsTest(parameterized.TestCase):
     chex.assert_trees_all_close(
         metrics.Average.from_model_output(values, mask=mask).compute(),
         expected_result)
+    chex.assert_trees_all_close(
+        (metrics.Average
+         .from_output("values", mask_name="my_mask")
+         .from_model_output(values=values, my_mask=mask)
+         .compute()),
+        expected_result)
 
   @parameterized.named_parameters(
       ("Average", metrics.Average),
