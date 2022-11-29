@@ -22,11 +22,13 @@ from absl.testing import parameterized
 import chex
 from clu import asynclib
 from clu import metrics
+import flax
 import jax
 import jax.numpy as jnp
 import numpy as np
 
 
+@flax.struct.dataclass
 class CollectingMetricAccuracy(
     metrics.CollectingMetric.from_outputs(("logits", "labels"))):
 
@@ -39,11 +41,13 @@ class CollectingMetricAccuracy(
     return (logits.argmax(axis=-1) == labels).mean()
 
 
+@flax.struct.dataclass
 class Collection(metrics.Collection):
   train_accuracy: metrics.Accuracy
   learning_rate: metrics.LastValue.from_output("learning_rate")
 
 
+@flax.struct.dataclass
 class CollectionMixed(metrics.Collection):
   collecting_metric_accuracy: CollectingMetricAccuracy
   train_accuracy: metrics.Accuracy
