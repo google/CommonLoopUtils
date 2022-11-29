@@ -35,7 +35,6 @@ Synopsis:
   import flax
   import jax
 
-  @flax.struct.dataclass  # required for jax.tree_*
   class Metrics(metrics.Collection):
     accuracy: metrics.Accuracy
     loss: metrics.Average.from_output("loss")
@@ -78,7 +77,7 @@ def _assert_same_shape(a: jnp.array, b: jnp.array):
     raise ValueError(f"Expected same shape: {a.shape} != {b.shape}")
 
 
-class Metric:
+class Metric(flax.struct.PyTreeNode):
   """Interface for computing metrics from intermediate values.
 
   Refer to `Collection` for computing multipel metrics at the same time.
@@ -88,7 +87,6 @@ class Metric:
     import jax.numpy as jnp
     import flax
 
-    @flax.struct.dataclass
     class Average(Metric):
       total: jnp.array
       count: jnp.array
@@ -202,7 +200,6 @@ class Metric:
       `model_output`.
     """
 
-    @flax.struct.dataclass
     class FromFun(cls):
       """Wrapper Metric class that collects output after applying `fun`."""
 
@@ -245,7 +242,6 @@ class Metric:
 
     Synopsis:
 
-      @flax.struct.dataclass
       class Metrics(Collection):
         loss: Average.from_output('loss')
 
@@ -264,7 +260,6 @@ class Metric:
       a first argument the model output specified by `name`.
     """
 
-    @flax.struct.dataclass
     class FromOutput(cls):
       """Wrapper Metric class that collects output named `name`."""
 
@@ -283,7 +278,6 @@ class Metric:
     return FromOutput
 
 
-@flax.struct.dataclass
 class CollectingMetric(Metric):
   """A special metric that collects model outputs.
 
@@ -307,7 +301,6 @@ class CollectingMetric(Metric):
 
   Example to use compute average precision using `sklearn`:
 
-    @flax.struct.dataclass
     class AveragePrecision(
         metrics.CollectingMetric.from_outputs(("labels", "logits"))):
 
@@ -368,11 +361,10 @@ class CollectingMetric(Metric):
     return {k: np.concatenate(v) for k, v in self.values.items()}
 
   @classmethod
-  def from_outputs(cls, names: Sequence[str]):
+  def from_outputs(cls, names: Sequence[str]) -> Type["CollectingMetric"]:
     """Returns a metric class that collects all model outputs named `names`."""
 
-    @flax.struct.dataclass
-    class FromOutputs(cls):  # pylint:disable=missing-class-docstring
+    class FromOutputs(cls):  # pylint: disable=missing-class-docstring
 
       @classmethod
       def from_model_output(cls, **model_output) -> Metric:
@@ -387,7 +379,6 @@ class CollectingMetric(Metric):
     return FromOutputs
 
 
-@flax.struct.dataclass
 class _ReductionCounter(Metric):
   """Pseudo metric that keeps track of the total number of `.merge()`."""
 
@@ -409,15 +400,13 @@ def _check_reduction_counter_ndim(reduction_counter: _ReductionCounter):
         f"call a flax.jax_utils.unreplicate() or a Collections.reduce()?")
 
 
-@flax.struct.dataclass
-class Collection:
+class Collection(flax.struct.PyTreeNode):
   """Updates a collection of `Metric` from model outputs.
 
   Refer to the module documentation for a complete example.
 
   Synopsis:
 
-    @flax.struct.dataclass
     class Metrics(Collection):
       accuracy: Accuracy
 
@@ -437,7 +426,6 @@ class Collection:
 
     Instead declaring a `Collection` dataclass:
 
-      @flax.struct.dataclass
       class MyMetrics(metrics.Collection):
         accuracy: metrics.Accuracy
 
@@ -454,8 +442,8 @@ class Collection:
     Returns:
       A subclass of Collection with fields defined by provided `metrics`.
     """
-    return flax.struct.dataclass(
-        type("_InlineCollection", (Collection,), {"__annotations__": metrics}))
+    return type("_InlineCollection", (Collection,),
+                {"__annotations__": metrics})
 
   @classmethod
   def create_collection(cls, **metrics: Metric) -> "Collection":
@@ -469,7 +457,6 @@ class Collection:
 
       is equivalent to:
 
-        @flax.struct.dataclass
         class MyMetrics(metrics.Collection):
           accuracy: metrics.Accuracy
         my_metrics = MyMetrics(_ReductionCounter(jnp.array(1)),
@@ -574,7 +561,6 @@ class Collection:
     return flax.jax_utils.unreplicate(self)
 
 
-@flax.struct.dataclass
 class LastValue(Metric):
   """Keeps the last average batch value.
 
@@ -604,7 +590,6 @@ class LastValue(Metric):
     return self.value
 
 
-@flax.struct.dataclass
 class Average(Metric):
   """Computes the average of a scalar or a batch of tensors.
 
@@ -665,7 +650,6 @@ class Average(Metric):
     return self.total / self.count
 
 
-@flax.struct.dataclass
 class Std(Metric):
   """Computes the standard deviation of a scalar or a batch of scalars.
 
@@ -722,7 +706,6 @@ class Std(Metric):
     return variance**.5
 
 
-@flax.struct.dataclass
 class Accuracy(Average):
   """Computes the accuracy from model outputs `logits` and `labels`.
 
