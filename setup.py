@@ -24,6 +24,8 @@ from setuptools import setup
 
 tests_require = [
     "pytest",
+    "tensorflow",
+    "tensorflow_datasets",
     "torch>=1.2.0",
 ]
 pytorch_require = [
@@ -32,7 +34,7 @@ pytorch_require = [
 
 setup(
     name="clu",
-    version="0.0.7",
+    version="0.0.8",
     description=("Set of libraries for ML training loops in JAX."),
     author="Common Loop Utils Authors",
     author_email="no-reply@google.com",
@@ -51,9 +53,8 @@ setup(
         "ml_collections",
         "numpy",
         "packaging",
-        "tensorflow",
-        "tensorflow_datasets",
         "typing_extensions",
+        "wrapt",
     ],
     tests_require=tests_require,
     extras_require=dict(test=tests_require, pytorch=pytorch_require),
