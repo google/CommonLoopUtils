@@ -28,10 +28,10 @@ class LoggingWriterTest(tf.test.TestCase):
   def test_write_scalars(self):
     with self.assertLogs(level="INFO") as logs:
       self.writer.write_scalars(0, {"a": 3, "b": 0.15})
-      self.writer.write_scalars(2, {"a": 5, "b": 0.007})
+      self.writer.write_scalars(2, {"a": 0.0000005, "b": 0.007})
     self.assertEqual(
         logs.output,
-        ["INFO:absl:[0] a=3, b=0.150000", "INFO:absl:[2] a=5, b=0.007000"])
+        ["INFO:absl:[0] a=3, b=0.15", "INFO:absl:[2] a=5e-07, b=0.007"])
 
   def test_write_images(self):
     images = np.zeros((2, 28, 28, 3))
@@ -104,7 +104,7 @@ class LoggingWriterTest(tf.test.TestCase):
       writer.write_hparams({"learning_rate": 0.1})
 
     self.assertEqual(logs.output, [
-        "INFO:absl:[0] collection=train a=3, b=0.150000",
+        "INFO:absl:[0] collection=train a=3, b=0.15",
         "INFO:absl:[4] collection=train Got images: {'input_images': (2, 28, 28, 3)}.",
         "INFO:absl:[4] collection=train Got texts: {'samples': 'bla'}.",
         "INFO:absl:[4] collection=train Histogram for 'a' = {[-0.1, 0.1): 1, [0.1, 0.3]: 2}",

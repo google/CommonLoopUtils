@@ -42,7 +42,7 @@ class LoggingWriter(interface.MetricWriter):
 
   def write_scalars(self, step: int, scalars: Mapping[str, Scalar]):
     values = [
-        f"{k}={v:.6f}" if isinstance(v, float) else f"{k}={v}"
+        f"{k}={v:.6g}" if isinstance(v, float) else f"{k}={v}"
         for k, v in sorted(scalars.items())
     ]
     logging.info("[%d]%s %s", step, self._collection_str, ", ".join(values))
