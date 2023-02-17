@@ -76,7 +76,7 @@ SCHEME_RE = re.compile("^(?P<scheme>[a-z][a-z0-9.+-]+://)?(?P<path>.*)", re.I)
 
 def safe_normpath(path: str) -> str:
   """Normalizes path safely to get around `gfile.glob()` limitations."""
-  d = SCHEME_RE.match(path).groupdict()
+  d = SCHEME_RE.match(path).groupdict()  # pytype: disable=attribute-error  # re-none
   return (d["scheme"] or "") + os.path.normpath(d["path"])
 
 
