@@ -151,8 +151,8 @@ class Metric:
     def reduce_step(reduced: Metric, metric: Metric) -> Tuple[Metric, None]:
       return reduced.merge(metric), None
 
-    first = jax.tree_map(lambda x: x[0], self)
-    remainder = jax.tree_map(lambda x: x[1:], self)
+    first = jax.tree_util.tree_map(lambda x: x[0], self)
+    remainder = jax.tree_util.tree_map(lambda x: x[1:], self)
     # TODO(b/160868467) Verify this adds no significant computational cost.
     return jax.lax.scan(reduce_step, first, remainder)[0]
 
@@ -356,7 +356,7 @@ class CollectingMetric(Metric):
       return other
     if self.values and not other.values:
       return self
-    return type(self)(jax.tree_map(np.asarray, values))
+    return type(self)(jax.tree_util.tree_map(np.asarray, values))
 
   def reduce(self) -> "CollectingMetric":
     # Note that this is usually called from inside a `pmap()` via
