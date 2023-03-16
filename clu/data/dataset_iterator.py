@@ -232,8 +232,8 @@ class PeekableDatasetIterator(DatasetIterator):
     # Mutex for self._it.
     self._mutex = threading.Lock()
     self._peek: Optional[Element] = None
-    self._peek_future = None
     self._pool = None
+    self._peek_future = None
 
   def __next__(self) -> Element:
     with self._mutex:
@@ -263,10 +263,9 @@ class PeekableDatasetIterator(DatasetIterator):
     Returns:
       The next element.
     """
-    with self._mutex:
-      if self._peek is None:
-        self._peek = next(self._it)
-      return self._peek
+    if self._peek is None:
+      self._peek = next(self)
+    return self._peek
 
   def peek_async(self) -> concurrent.futures.Future[Element]:
     """Same as peek() but returns the Future of the element.
@@ -286,12 +285,8 @@ class PeekableDatasetIterator(DatasetIterator):
 
   def save(self, filename: epath.Path):
     with self._mutex:
-      if self._peek:
-        raise ValueError("Cannot save state of peeked dataset iterator.")
       self._it.save(filename)
 
   def restore(self, filename: epath.Path):
     with self._mutex:
-      self._peek = None
-      self._peek_future = None
       self._it.restore(filename)
