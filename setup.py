@@ -26,10 +26,10 @@ tests_require = [
     "pytest",
     "tensorflow",
     "tensorflow_datasets",
-    "torch>=1.2.0",
+    "torch>=1.13.0",
 ]
 pytorch_require = [
-    "torch>=1.2.0",
+    "torch>=1.13.0",
 ]
 
 setup(
