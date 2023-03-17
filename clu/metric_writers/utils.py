@@ -64,7 +64,7 @@ def write_values(writer: MetricWriter, step: int,
     metrics: Mapping from name to clu.values.Value object.
   """
   writes = collections.defaultdict(dict)
-  histogram_num_buckets = collections.defaultdict(dict)
+  histogram_num_buckets = collections.defaultdict(int)
   for k, v in metrics.items():
     if isinstance(v, values.Summary):
       writes[(writer.write_summaries, frozenset({"metadata": v.metadata
@@ -92,7 +92,7 @@ def write_values(writer: MetricWriter, step: int,
   for (fn, extra_args), vals in writes.items():
     if fn == writer.write_histograms:
       # for write_histograms, the num_buckets arg is a Dict indexed by name
-      fn(step, vals, num_buckets=histogram_num_buckets)
+      writer.write_histograms(step, vals, num_buckets=histogram_num_buckets)
     else:
       fn(step, vals, **dict(extra_args))
 
