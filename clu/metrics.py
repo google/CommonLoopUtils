@@ -132,6 +132,9 @@ class Metric:
     """
     raise NotImplementedError("Must override merge()")
 
+  def merge_reduce(self, other: "Metric") -> "Metric":
+    return self.merge(other)
+
   def compute(self) -> jnp.array:
     """Computes final metrics from intermediate values."""
     raise NotImplementedError("Must override compute()")
@@ -146,10 +149,23 @@ class Metric:
     return clu.values.Scalar(self.compute())
 
   def reduce(self) -> "Metric":
-    """Reduces the metric along it first axis by calling `merge()`."""
+    """Reduces the metric along it first axis by calling `reduce_merge()`.
+
+    This function primary use case is to aggregate metrics collected across
+    multiple devices, rather than "merging" metrics across multiple steps.
+
+    In many cases these have the same semantics (such as `Average`), but
+    in some such as LastValue's batch averaging, reduction across devices is
+    averaging, while reduction across steps is taking the last value.
+
+    See `Collection.reduce`, for usage patterns.
+
+    Returns:
+      reduced metric.
+    """
 
     def reduce_step(reduced: Metric, metric: Metric) -> Tuple[Metric, None]:
-      return reduced.merge(metric), None
+      return reduced.merge_reduce(metric), None
 
     first = jax.tree_map(lambda x: x[0], self)
     remainder = jax.tree_map(lambda x: x[1:], self)
@@ -545,7 +561,32 @@ class Collection:
     })
 
   def reduce(self) -> "Collection":
-    """Reduces the collection by calling `Metric.reduce()` on each metric."""
+    """Reduces the collection by calling `Metric.reduce()` on each metric.
+
+    The primary use case is to reduce collection that was gathered
+    from  multiple devices into one collection: For instance inside pmap
+
+    ```
+      col = jax.lax.all_gather(col, axis_name='foo').reduce()
+    ```
+    or, if computed directly from model_outputs:
+
+    ```
+      col = col.merge(col.gather_from_model_output(**outputs)))
+    ```
+
+    will sync collections across all devices to create a replicated collection
+    that include statistics from all devices.
+    Outside pmap, this metric can then be safely unreplicated using for
+    `collection.unreplicate()`.
+
+    If `collection.unreplicate()` is called without gathering it will only
+    contain the statistics from the first device, which is rarely a desired
+    behavior.
+
+    Returns:
+      Reduced collection.
+    """
     return type(self)(**{
         metric_name: metric.reduce()
         for metric_name, metric in vars(self).items()
@@ -570,22 +611,59 @@ class Collection:
     }
 
   def unreplicate(self) -> "Collection":
-    """Short-hand for `flax.jax_utils.unreplicate(self)`."""
+    """Short-hand for `flax.jax_utils.unreplicate(self)`.
+
+    The collection should be gathered and `reduce`d inside pmap,
+    using `gather_from_model_output` or all_gather / reduce for this
+    function to return correct values. See `Collection.reduce` for details.
+
+    Returns:
+      Unreplicated collection
+    """
     return flax.jax_utils.unreplicate(self)
 
 
 @flax.struct.dataclass
 class LastValue(Metric):
-  """Keeps the last average batch value.
+  """Keeps the last average global batch value.
 
-  This is useful to log values like the learning rate.
+  This is useful to log values such as learning rate and losses during training.
+
+  This class mirrors Average, because it needs to maintain total/count
+  in cases when batch is distributed across multiple devices and need
+  to be averaged later. However, we don't inherit from Average to
+  maintain backward compatibility in case of isinstance(metric, Average)
+  check.  For backward compatibility this class can be initialized using the
+  keyword `LastValue(value=10)`  or  `total` and `count`.
   """
+  total: jnp.array
+  count: jnp.array
 
-  value: jnp.array
+  def __init__(self, total: Optional[jnp.array] = None,
+               count: Optional[jnp.array] = None,
+               value: Optional[jnp.array] = None,
+               ):
+    """Constructor which supports keyword argument value as initializer.
+
+    If  "value" is provided, then  "total" should *not* be provided.
+
+    Args:
+      total: Total value.
+      count: Count of examples, 1 if not provided
+      value: Value, if provided, will be assumed to be "count" of values.
+    """
+    count = count if count is not None else jnp.array(1, dtype=jnp.int32)
+    if value is not None:
+      if total is not None:
+        raise ValueError("Only one of 'total' and 'value' should be None. "
+                         f'Got {total}, {value}')
+      total = value * count
+    object.__setattr__(self, "total", total)
+    object.__setattr__(self, "count", count)
 
   @classmethod
   def empty(cls):
-    return cls(value=jnp.array(jnp.nan, jnp.float32))
+    return cls(jnp.array(0, jnp.float32), count=jnp.array(0, jnp.int32))
 
   @classmethod
   def from_model_output(cls,
@@ -594,11 +672,28 @@ class LastValue(Metric):
                         **_) -> Metric:
     if mask is None:
       mask = jnp.ones((value.shape or [()])[0])
-    return cls(jnp.where(mask, value, jnp.zeros_like(value)).sum() / mask.sum())
+    return cls(
+        total=jnp.where(mask, value, jnp.zeros_like(value)).sum(),
+        count=mask.sum().astype(jnp.int32),
+    )
 
   def merge(self, other: "LastValue") -> "LastValue":
     _assert_same_shape(self.value, other.value)
     return other
+
+  def merge_reduce(self, other: "LastValue") -> "LastValue":
+    # We need to average during reduction
+    _assert_same_shape(self.total, other.total)
+    return type(self)(
+        total=self.total + other.total,
+        count=self.count + other.count,
+    )
+
+  @property
+  def value(self) -> jnp.array:
+    # Explicitly allow NaN division as it is part of normal computation here.
+    with jax.debug_nans(False):
+      return self.total / self.count
 
   def compute(self) -> Any:
     return self.value
