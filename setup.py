@@ -26,7 +26,8 @@ tests_require = [
     "pytest",
     "tensorflow",
     "tensorflow_datasets",
-    "torch>=1.13.0",
+    # Temporarily disabling torch-2.0.0 since this fails Github actions.
+    "torch>=1.13.0,!=2.0.0",
 ]
 pytorch_require = [
     "torch>=1.13.0",
