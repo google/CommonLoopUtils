@@ -227,7 +227,7 @@ def get_parameter_overview(params: ParamsContainer,
   +----------------+---------------+------------+
   Total: 65,172,512
   """
-  if isinstance(params, (dict, flax.core.FrozenDict)):
+  if include_stats and isinstance(params, (dict, flax.core.FrozenDict)):
     params = jax.tree_map(np.asarray, params)
   rows = get_parameter_rows(params, include_stats=include_stats)
   total_weights = count_parameters(params)
