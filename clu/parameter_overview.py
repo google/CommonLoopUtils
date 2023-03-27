@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Helper function for creating and logging TF/JAX variable overviews."""
+"""Helper function for creating and logging TF/JAX variable overviews.  Test."""
 
 import dataclasses
 from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Union
