@@ -1,4 +1,4 @@
-# Copyright 2022 The CLU Authors.
+# Copyright 2023 The CLU Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -471,7 +471,7 @@ class Collection:
       A subclass of Collection with fields defined by provided `metrics`.
     """
     return flax.struct.dataclass(
-        type("_InlineCollection", (Collection,), {"__annotations__": metrics}))
+        type("_InlineCollection", (cls,), {"__annotations__": metrics}))
 
   @classmethod
   def create_collection(cls, **metrics: Metric) -> "Collection":
