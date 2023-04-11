@@ -1,4 +1,4 @@
-# Copyright 2022 The CLU Authors.
+# Copyright 2023 The CLU Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -81,7 +81,7 @@ def _assert_same_shape(a: jnp.array, b: jnp.array):
 class Metric:
   """Interface for computing metrics from intermediate values.
 
-  Refer to `Collection` for computing multipel metrics at the same time.
+  Refer to `Collection` for computing multiple metrics at the same time.
 
   Synopsis:
 
@@ -122,7 +122,7 @@ class Metric:
     """Returns `Metric` that is the accumulation of `self` and `other`.
 
     Args:
-      other: A `Metric` whose inermediate values should be accumulated onto the
+      other: A `Metric` whose intermediate values should be accumulated onto the
         values of `self`. Note that in a distributed setting, `other` will
         typically be the output of a `jax.lax` parallel operator and thus have a
         dimension added to the dataclass returned by `.from_model_output()`.
