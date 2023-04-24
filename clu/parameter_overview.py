@@ -45,6 +45,7 @@ class ParamRow:
 class ParamRowWithStats(ParamRow):
   mean: float
   std: float
+  norm: float
 
 
 def flatten_dict(input_dict: Dict[str, Any],
@@ -115,6 +116,7 @@ def get_parameter_rows(
           size=int(np.prod(value.shape)),
           mean=float(value.mean()),
           std=float(value.std()),
+          norm=np.linalg.norm(value)
       )
     else:
       return ParamRow(
