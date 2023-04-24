@@ -34,7 +34,6 @@ import tensorflow as tf
 
 
 
-@flax.struct.dataclass
 class HistogramMetric(clu.metrics.Metric):
   value: jnp.ndarray
   num_buckets: int
@@ -43,7 +42,6 @@ class HistogramMetric(clu.metrics.Metric):
     return values.Histogram(self.value, self.num_buckets)
 
 
-@flax.struct.dataclass
 class ImageMetric(clu.metrics.Metric):
   value: jnp.ndarray
 
@@ -51,7 +49,6 @@ class ImageMetric(clu.metrics.Metric):
     return values.Image(self.value)
 
 
-@flax.struct.dataclass
 class AudioMetric(clu.metrics.Metric):
   value: jnp.ndarray
   sample_rate: int
@@ -60,7 +57,6 @@ class AudioMetric(clu.metrics.Metric):
     return values.Audio(self.value, self.sample_rate)
 
 
-@flax.struct.dataclass
 class TextMetric(clu.metrics.Metric):
   value: str
 
@@ -68,7 +64,6 @@ class TextMetric(clu.metrics.Metric):
     return values.Text(self.value)
 
 
-@flax.struct.dataclass
 class HyperParamMetric(clu.metrics.Metric):
   value: float
 
@@ -76,7 +71,6 @@ class HyperParamMetric(clu.metrics.Metric):
     return values.HyperParam(self.value)
 
 
-@flax.struct.dataclass
 class SummaryMetric(clu.metrics.Metric):
   value: jnp.ndarray
   metadata: Any
