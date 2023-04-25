@@ -6,11 +6,11 @@ small libraries) without removing the flexibility required for research.
 
 To get started, check out this Colab:
 
-https://colab.research.google.com/github/google/CommonLoopUtils/blob/master/clu_synopsis.ipynb
+https://colab.research.google.com/github/google/CommonLoopUtils/blob/main/clu_synopsis.ipynb
 
 If you're looking for usage examples, see:
 
-https://github.com/google/flax/tree/master/examples
+https://github.com/google/flax/tree/main/examples
 
 You can also find answers to common questions about CLU on Flax Github
 discussions page:
