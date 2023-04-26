@@ -132,7 +132,16 @@ class Metric:
     """
     raise NotImplementedError("Must override merge()")
 
-  def merge_reduce(self, other: "Metric") -> "Metric":
+  # The variant of `merge()` called inside `reduce()`. While `merge()` and
+  # `_reduce_merge()` will be the same in many cases, there are exceptions:
+  # see `LastValue` for an example of a `Metric` which aggregates values
+  # differently over training steps compared how it aggregates them over
+  # accelerators.
+  #
+  # `_reduce_merge()` must be associative[1], otherwise we would get
+  # different results when using different devices.
+  # [1] https://en.wikipedia.org/wiki/Associative_property
+  def _reduce_merge(self, other: "Metric") -> "Metric":
     return self.merge(other)
 
   def compute(self) -> jnp.array:
@@ -149,14 +158,14 @@ class Metric:
     return clu.values.Scalar(self.compute())
 
   def reduce(self) -> "Metric":
-    """Reduces the metric along it first axis by calling `reduce_merge()`.
+    """Reduces the metric along it first axis by calling `_reduce_merge()`.
 
     This function primary use case is to aggregate metrics collected across
     multiple devices, rather than "merging" metrics across multiple steps.
 
     In many cases these have the same semantics (such as `Average`), but
-    in some such as LastValue's batch averaging, reduction across devices is
-    averaging, while reduction across steps is taking the last value.
+    in some such as `LastValue`'s batch averaging, reduction across devices
+    is averaging, while reduction across steps is taking the last value.
 
     See `Collection.reduce`, for usage patterns.
 
@@ -165,7 +174,8 @@ class Metric:
     """
 
     def reduce_step(reduced: Metric, metric: Metric) -> Tuple[Metric, None]:
-      return reduced.merge_reduce(metric), None
+      # pylint: disable-next=protected-access
+      return reduced._reduce_merge(metric), None
 
     first = jax.tree_map(lambda x: x[0], self)
     remainder = jax.tree_map(lambda x: x[1:], self)
@@ -681,8 +691,8 @@ class LastValue(Metric):
     _assert_same_shape(self.value, other.value)
     return other
 
-  def merge_reduce(self, other: "LastValue") -> "LastValue":
-    # We need to average during reduction
+  def _reduce_merge(self, other: "LastValue") -> "LastValue":
+    # We need to average during reduction.
     _assert_same_shape(self.total, other.total)
     return type(self)(
         total=self.total + other.total,
