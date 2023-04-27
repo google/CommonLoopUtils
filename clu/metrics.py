@@ -55,8 +55,8 @@ Synopsis:
       ms = p_eval_step(ms, model, p_variables, inputs, labels)
     return ms.unreplicate().compute()
 """
-
-from typing import Any, Callable, Dict, Mapping, Optional, Sequence, Tuple, Type
+from collections.abc import Callable, Mapping, Sequence
+from typing import Any, Optional
 
 from absl import logging
 
@@ -173,7 +173,7 @@ class Metric:
       reduced metric.
     """
 
-    def reduce_step(reduced: Metric, metric: Metric) -> Tuple[Metric, None]:
+    def reduce_step(reduced: Metric, metric: Metric) -> tuple[Metric, None]:
       # pylint: disable-next=protected-access
       return reduced._reduce_merge(metric), None
 
@@ -363,7 +363,7 @@ class CollectingMetric(Metric):
       return ms.compute()
   """
 
-  values: Dict[str, Tuple[np.ndarray, ...]]
+  values: dict[str, tuple[np.ndarray, ...]]
 
   @classmethod
   def empty(cls) -> "CollectingMetric":
@@ -390,7 +390,7 @@ class CollectingMetric(Metric):
     return type(self)(
         {name: jnp.concatenate(values) for name, values in self.values.items()})
 
-  def compute(self) -> Dict[str, np.ndarray]:
+  def compute(self) -> dict[str, np.ndarray]:
     return {k: np.concatenate(v) for k, v in self.values.items()}
 
   @classmethod
@@ -458,7 +458,7 @@ class Collection:
   _reduction_counter: _ReductionCounter
 
   @classmethod
-  def create(cls, **metrics: Type[Metric]) -> Type["Collection"]:
+  def create(cls, **metrics: type[Metric]) -> type["Collection"]:
     """Handy short-cut to define a `Collection` inline.
 
     Instead declaring a `Collection` dataclass:
@@ -602,7 +602,7 @@ class Collection:
         for metric_name, metric in vars(self).items()
     })
 
-  def compute(self) -> Dict[str, jnp.array]:
+  def compute(self) -> dict[str, jnp.array]:
     """Returns a dictionary mapping metric field name to `Metric.compute()`."""
     _check_reduction_counter_ndim(self._reduction_counter)
     return {
@@ -611,7 +611,7 @@ class Collection:
         if metric_name != "_reduction_counter"
     }
 
-  def compute_values(self) -> Dict[str, clu.values.Value]:
+  def compute_values(self) -> dict[str, clu.values.Value]:
     """Computes metrics and returns them as clu.values.Value."""
     _check_reduction_counter_ndim(self._reduction_counter)
     return {
