@@ -159,7 +159,7 @@ class RandomMapTransform(MapTransform, abc.ABC):
     return features
 
   @abc.abstractmethod
-  def _transform(self, features: FlatFeatures, seed: tf.Tensor) -> FlatFeatures:
+  def _transform(self, features: FlatFeatures, seed: tf.Tensor) -> FlatFeatures:  # pytype: disable=signature-mismatch  # overriding-parameter-count-checks
     """Transforms the features only using stateless random ops."""
 
 
