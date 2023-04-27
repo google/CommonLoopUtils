@@ -56,7 +56,7 @@ Synopsis:
     return ms.unreplicate().compute()
 """
 from collections.abc import Callable, Mapping, Sequence
-from typing import Any, Optional
+from typing import Any, Optional, TypeVar
 
 from absl import logging
 
@@ -435,6 +435,9 @@ def _check_reduction_counter_ndim(reduction_counter: _ReductionCounter):
         f"call a flax.jax_utils.unreplicate() or a Collections.reduce()?")
 
 
+C = TypeVar("C", bound="Collection")
+
+
 @flax.struct.dataclass
 class Collection:
   """Updates a collection of `Metric` from model outputs.
@@ -512,7 +515,7 @@ class Collection:
     return collection_class(_reduction_counter=counter, **metrics)
 
   @classmethod
-  def empty(cls) -> "Collection":
+  def empty(cls: type[C]) -> C:
     return cls(
         _reduction_counter=_ReductionCounter(jnp.array(1, dtype=jnp.int32)),
         **{
@@ -521,7 +524,7 @@ class Collection:
         })
 
   @classmethod
-  def _from_model_output(cls, **kwargs) -> "Collection":
+  def _from_model_output(cls: type[C], **kwargs) -> C:
     """Creates a `Collection` from model outputs."""
     return cls(
         _reduction_counter=_ReductionCounter(jnp.array(1, dtype=jnp.int32)),
@@ -531,7 +534,7 @@ class Collection:
         })
 
   @classmethod
-  def single_from_model_output(cls, **kwargs) -> "Collection":
+  def single_from_model_output(cls: type[C], **kwargs) -> C:
     """Creates a `Collection` from model outputs.
 
     Note: This function should only be called when metrics are collected in a
@@ -546,9 +549,7 @@ class Collection:
     return cls._from_model_output(**kwargs)
 
   @classmethod
-  def gather_from_model_output(cls,
-                               axis_name="batch",
-                               **kwargs) -> "Collection":
+  def gather_from_model_output(cls: type[C], axis_name="batch", **kwargs) -> C:
     """Creates a `Collection` from model outputs in a distributed setting.
 
     Args:
@@ -563,14 +564,14 @@ class Collection:
     return jax.lax.all_gather(
         cls._from_model_output(**kwargs), axis_name=axis_name).reduce()
 
-  def merge(self, other: "Collection") -> "Collection":
+  def merge(self: C, other: C) -> C:
     """Returns `Collection` that is the accumulation of `self` and `other`."""
     return type(self)(**{
         metric_name: metric.merge(getattr(other, metric_name))
         for metric_name, metric in vars(self).items()
     })
 
-  def reduce(self) -> "Collection":
+  def reduce(self: C) -> C:
     """Reduces the collection by calling `Metric.reduce()` on each metric.
 
     The primary use case is to reduce collection that was gathered
@@ -620,7 +621,7 @@ class Collection:
         if metric_name != "_reduction_counter"
     }
 
-  def unreplicate(self) -> "Collection":
+  def unreplicate(self: C) -> C:
     """Short-hand for `flax.jax_utils.unreplicate(self)`.
 
     The collection should be gathered and `reduce`d inside pmap,

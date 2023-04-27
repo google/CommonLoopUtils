@@ -86,6 +86,8 @@ class MetricsTest(parameterized.TestCase):
         dict(mask=mask, **model_output)
         for mask, model_output in zip(masks, self.model_outputs))
 
+    self.count = 4
+    self.count_masked = 2
     self.results = {
         "train_accuracy": 0.75,
         "learning_rate": 0.01,
@@ -367,18 +369,23 @@ class MetricsTest(parameterized.TestCase):
       ("_masked", True),
   )
   def test_collection_single(self, masked):
-
+    @jax.jit
     def compute_collection(model_outputs):
       collection = Collection.empty()
       for model_output in model_outputs:
         update = Collection.single_from_model_output(**model_output)
         collection = collection.merge(update)
-      return collection.compute()
+      return collection
 
+    model_outputs = self.model_outputs_masked if masked else self.model_outputs
+    collection = compute_collection(model_outputs)
     chex.assert_trees_all_close(
-        jax.jit(compute_collection)(
-            self.model_outputs_masked if masked else self.model_outputs),
-        self.results_masked if masked else self.results)
+        collection.compute(), self.results_masked if masked else self.results
+    )
+    self.assertEqual(
+        collection.train_accuracy.count,
+        self.count_masked if masked else self.count,
+    )
 
   @parameterized.named_parameters(
       ("", False),
