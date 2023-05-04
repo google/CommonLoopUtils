@@ -852,11 +852,14 @@ class Accuracy(Average):
   """
 
   @classmethod
-  def from_model_output(cls, *, logits: jnp.array, labels: jnp.array,
-                        **kwargs) -> Metric:
+  def from_model_output(
+      cls, *, logits: jnp.array, labels: jnp.array, **kwargs
+  ) -> Accuracy:
     if logits.ndim != labels.ndim + 1 or labels.dtype != jnp.int32:
       raise ValueError(
           f"Expected labels.dtype==jnp.int32 and logits.ndim={logits.ndim}=="
           f"labels.ndim+1={labels.ndim + 1}")
-    return super().from_model_output(
-        values=(logits.argmax(axis=-1) == labels).astype(jnp.float32), **kwargs)
+    metric = super().from_model_output(
+        values=(logits.argmax(axis=-1) == labels).astype(jnp.float32), **kwargs
+    )
+    return cls(**vars(metric))  # cls(metrics) doesn't work for a dataclass
