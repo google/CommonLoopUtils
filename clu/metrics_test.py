@@ -270,11 +270,37 @@ class MetricsTest(parameterized.TestCase):
         self.make_compute_metric(metrics.Accuracy, reduce)(self.model_outputs),
         self.results["train_accuracy"])
 
+  # Make sure mask properly forwards to Average (including explicit None)
+  def test_accuracy_masked(self):
+    logits = jnp.array([[0, 0.1], [0, -1.0]])
+    labels = jnp.array([1, 1])  #  1st correct, 2nd incorrect
+
+    accuracy_no_mask = metrics.Accuracy.from_model_output(
+        logits=logits, labels=labels, mask=None
+    ).compute()
+    self.assertEqual(accuracy_no_mask, 0.5)
+
+    accuracy_with_mask = metrics.Accuracy.from_model_output(
+        logits=logits, labels=labels, mask=jnp.array([True, False])
+    ).compute()
+    self.assertEqual(accuracy_with_mask, 1.0)
+
   def test_last_value_asserts_shape(self):
     metric1 = metrics.LastValue.from_model_output(jnp.arange(3.))
     metric2 = jax.tree_map(lambda *args: jnp.stack(args), metric1, metric1)
     with self.assertRaisesRegex(ValueError, r"^Expected same shape"):
       metric1.merge(metric2)
+
+  def test_last_value_from_output(self):
+    metric_class = metrics.LastValue.from_output("good")
+    metric = metric_class.from_model_output(good=jnp.arange(5))
+    self.assertEqual(metric.compute(), 2)  # Average of 0,1,2,3,4
+    self.assertEqual(metric.value, 2)
+
+  def test_missing_value_raises_error(self):
+    metric = metrics.LastValue.from_output("bad")
+    with self.assertRaisesRegex(KeyError, "bad"):
+      metric.from_model_output(good=jnp.arange(5)).compute()
 
   @parameterized.named_parameters(
       ("", False),
