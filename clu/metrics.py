@@ -55,8 +55,9 @@ Synopsis:
       ms = p_eval_step(ms, model, p_variables, inputs, labels)
     return ms.unreplicate().compute()
 """
-from collections.abc import Callable, Mapping, Sequence
-from typing import Any, Optional, TypeVar
+from __future__ import annotations
+from collections.abc import Mapping, Sequence
+from typing import Any, TypeVar, Protocol
 
 from absl import logging
 
@@ -67,6 +68,17 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
+Array = jax.Array
+ArrayLike = jax.typing.ArrayLike
+
+
+class FromFunCallable(Protocol):
+  """The type of functions that can be passed to `Metrics.from_fun()`."""
+
+  def __call__(self, **kwargs: ArrayLike) -> Array | Mapping[str, Array]:
+    """Returns the argument/arguments passed to the base from_model_output()."""
+
+
 # TODO(b/200953513): Migrate away from logging imports (on module level)
 #                    to logging the actual usage. See b/200953513.
 
@@ -76,6 +88,9 @@ def _assert_same_shape(a: jnp.array, b: jnp.array):
   """Raises a `ValueError` if shapes of `a` and `b` don't match."""
   if a.shape != b.shape:
     raise ValueError(f"Expected same shape: {a.shape} != {b.shape}")
+
+
+M = TypeVar("M", bound="Metric")
 
 
 class Metric:
@@ -114,11 +129,11 @@ class Metric:
   """
 
   @classmethod
-  def from_model_output(cls, *args, **kwargs) -> "Metric":
+  def from_model_output(cls: type[M], *args, **kwargs) -> M:
     """Creates a `Metric` from model outputs."""
     raise NotImplementedError("Must override from_model_output()")
 
-  def merge(self, other: "Metric") -> "Metric":
+  def merge(self: M, other: M) -> M:
     """Returns `Metric` that is the accumulation of `self` and `other`.
 
     Args:
@@ -141,7 +156,7 @@ class Metric:
   # `_reduce_merge()` must be associative[1], otherwise we would get
   # different results when using different devices.
   # [1] https://en.wikipedia.org/wiki/Associative_property
-  def _reduce_merge(self, other: "Metric") -> "Metric":
+  def _reduce_merge(self: M, other: M) -> M:
     return self.merge(other)
 
   def compute(self) -> jnp.array:
@@ -149,7 +164,7 @@ class Metric:
     raise NotImplementedError("Must override compute()")
 
   @classmethod
-  def empty(cls) -> "Metric":
+  def empty(cls: type[M]) -> M:
     """Returns an empty instance (i.e. `.merge(Metric.empty())` is a no-op)."""
     raise NotImplementedError("Must override empty()")
 
@@ -157,7 +172,7 @@ class Metric:
     """Wraps compute() and returns a values.Value."""
     return clu.values.Scalar(self.compute())
 
-  def reduce(self) -> "Metric":
+  def reduce(self: M) -> M:
     """Reduces the metric along it first axis by calling `_reduce_merge()`.
 
     This function primary use case is to aggregate metrics collected across
@@ -173,7 +188,7 @@ class Metric:
       reduced metric.
     """
 
-    def reduce_step(reduced: Metric, metric: Metric) -> tuple[Metric, None]:
+    def reduce_step(reduced: M, metric: M) -> tuple[M, None]:
       # pylint: disable-next=protected-access
       return reduced._reduce_merge(metric), None
 
@@ -183,7 +198,7 @@ class Metric:
     return jax.lax.scan(reduce_step, first, remainder)[0]
 
   @classmethod
-  def from_fun(cls, fun: Callable):  # pylint: disable=g-bare-generic
+  def from_fun(cls, fun: FromFunCallable):  # No way to annotate return type
     """Calls `cls.from_model_output` with the return value from `fun`.
 
     Returns a `Metric` derived from `cls` whose `.from_model_output` (1) calls
@@ -233,7 +248,7 @@ class Metric:
       """Wrapper Metric class that collects output after applying `fun`."""
 
       @classmethod
-      def from_model_output(cls, **model_output) -> Metric:
+      def from_model_output(cls: type[M], **model_output) -> M:
         mask = model_output.get("mask")
         output = fun(**model_output)
         if isinstance(output, Mapping) and "mask" in output:
@@ -266,7 +281,7 @@ class Metric:
     return FromFun
 
   @classmethod
-  def from_output(cls, name: str):  # pylint: disable=g-bare-generic
+  def from_output(cls, name: str):  # No way to annotate return type
     """Calls `cls.from_model_output` with model output named `name`.
 
     Synopsis:
@@ -295,7 +310,7 @@ class Metric:
       """Wrapper Metric class that collects output named `name`."""
 
       @classmethod
-      def from_model_output(cls, **model_output) -> Metric:
+      def from_model_output(cls: type[M], **model_output) -> M:
         output = jnp.array(model_output[name])
         mask = model_output.get("mask")
         if mask is not None and (output.shape or [0])[0] != mask.shape[0]:
@@ -366,10 +381,10 @@ class CollectingMetric(Metric):
   values: dict[str, tuple[np.ndarray, ...]]
 
   @classmethod
-  def empty(cls) -> "CollectingMetric":
+  def empty(cls) -> CollectingMetric:
     return cls(values={})
 
-  def merge(self, other: "CollectingMetric") -> "CollectingMetric":
+  def merge(self, other: CollectingMetric) -> CollectingMetric:
     values = {
         name: (*value, *other.values[name])
         for name, value in self.values.items()
@@ -384,25 +399,24 @@ class CollectingMetric(Metric):
       return self
     return type(self)(jax.tree_map(np.asarray, values))
 
-  def reduce(self) -> "CollectingMetric":
+  def reduce(self) -> CollectingMetric:
     # Note that this is usually called from inside a `pmap()` via
     # `Collection.gather_from_model_output()` so we concatenate using jnp.
     return type(self)(
         {name: jnp.concatenate(values) for name, values in self.values.items()})
 
-  def compute(self) -> dict[str, np.ndarray]:
+  def compute(self):  # No return type annotation, so subclasses can override
     return {k: np.concatenate(v) for k, v in self.values.items()}
 
   @classmethod
-  def from_outputs(cls, names: Sequence[str]):
+  def from_outputs(cls, names: Sequence[str]) -> type[CollectingMetric]:
     """Returns a metric class that collects all model outputs named `names`."""
 
     @flax.struct.dataclass
     class FromOutputs(cls):  # pylint:disable=missing-class-docstring
 
       @classmethod
-      def from_model_output(cls, **model_output) -> Metric:
-
+      def from_model_output(cls: type[M], **model_output) -> M:
         def make_array(value):
           value = jnp.array(value)
           # Can't jnp.concatenate() scalars, promote to shape=(1,) in that case.
@@ -420,10 +434,10 @@ class _ReductionCounter(Metric):
   value: jnp.array
 
   @classmethod
-  def empty(cls):
+  def empty(cls) -> _ReductionCounter:
     return cls(value=jnp.array(1, jnp.int32))
 
-  def merge(self, other: "_ReductionCounter") -> "_ReductionCounter":
+  def merge(self, other: _ReductionCounter) -> _ReductionCounter:
     return _ReductionCounter(self.value + other.value)
 
 
@@ -461,7 +475,7 @@ class Collection:
   _reduction_counter: _ReductionCounter
 
   @classmethod
-  def create(cls, **metrics: type[Metric]) -> type["Collection"]:
+  def create(cls, **metrics: type[Metric]) -> type[Collection]:
     """Handy short-cut to define a `Collection` inline.
 
     Instead declaring a `Collection` dataclass:
@@ -487,7 +501,7 @@ class Collection:
         type("_InlineCollection", (Collection,), {"__annotations__": metrics}))
 
   @classmethod
-  def create_collection(cls, **metrics: Metric) -> "Collection":
+  def create_collection(cls, **metrics: Metric) -> Collection:
     """Creates a custom collection object with fields metrics.
 
     This object will be an instance of custom subclass of `Collection` with
@@ -650,10 +664,12 @@ class LastValue(Metric):
   total: jnp.array
   count: jnp.array
 
-  def __init__(self, total: Optional[jnp.array] = None,
-               count: Optional[jnp.array] = None,
-               value: Optional[jnp.array] = None,
-               ):
+  def __init__(
+      self,
+      total: jnp.array | None = None,
+      count: jnp.array | None = None,
+      value: jnp.array | None = None,
+  ):
     """Constructor which supports keyword argument value as initializer.
 
     If  "value" is provided, then  "total" should *not* be provided.
@@ -673,14 +689,13 @@ class LastValue(Metric):
     object.__setattr__(self, "count", count)
 
   @classmethod
-  def empty(cls):
+  def empty(cls) -> LastValue:
     return cls(jnp.array(0, jnp.float32), count=jnp.array(0, jnp.int32))
 
   @classmethod
-  def from_model_output(cls,
-                        value: jnp.array,
-                        mask: Optional[jnp.array] = None,
-                        **_) -> Metric:
+  def from_model_output(
+      cls, value: jnp.array, mask: jnp.array | None = None, **_
+  ) -> LastValue:
     if mask is None:
       mask = jnp.ones((value.shape or [()])[0])
     return cls(
@@ -688,11 +703,11 @@ class LastValue(Metric):
         count=mask.sum().astype(jnp.int32),
     )
 
-  def merge(self, other: "LastValue") -> "LastValue":
+  def merge(self, other: LastValue) -> LastValue:
     _assert_same_shape(self.value, other.value)
     return other
 
-  def _reduce_merge(self, other: "LastValue") -> "LastValue":
+  def _reduce_merge(self, other: LastValue) -> LastValue:
     # We need to average during reduction.
     _assert_same_shape(self.total, other.total)
     return type(self)(
@@ -730,14 +745,13 @@ class Average(Metric):
   count: jnp.array
 
   @classmethod
-  def empty(cls) -> Metric:
+  def empty(cls) -> Average:
     return cls(total=jnp.array(0, jnp.float32), count=jnp.array(0, jnp.int32))
 
   @classmethod
-  def from_model_output(cls,
-                        values: jnp.array,
-                        mask: Optional[jnp.array] = None,
-                        **_) -> Metric:
+  def from_model_output(
+      cls, values: jnp.array, mask: jnp.array | None = None, **_
+  ) -> Average:
     if values.ndim == 0:
       values = values[None]
     if mask is None:
@@ -760,7 +774,7 @@ class Average(Metric):
                         jnp.zeros_like(values, dtype=jnp.int32)).sum(),
     )
 
-  def merge(self, other: "Average") -> "Average":
+  def merge(self, other: Average) -> Average:
     _assert_same_shape(self.total, other.total)
     return type(self)(
         total=self.total + other.total,
@@ -783,17 +797,16 @@ class Std(Metric):
   count: jnp.array
 
   @classmethod
-  def empty(cls):
+  def empty(cls) -> Std:
     return cls(
         total=jnp.array(0, jnp.float32),
         sum_of_squares=jnp.array(0, jnp.float32),
         count=jnp.array(0, jnp.int32))
 
   @classmethod
-  def from_model_output(cls,
-                        values: jnp.array,
-                        mask: Optional[jnp.array] = None,
-                        **_) -> Metric:
+  def from_model_output(
+      cls, values: jnp.array, mask: jnp.array | None = None, **_
+  ) -> Std:
     if values.ndim == 0:
       values = values[None]
     utils.check_param(values, ndim=1)
@@ -805,7 +818,7 @@ class Std(Metric):
         count=mask.sum(),
     )
 
-  def merge(self, other: "Std") -> "Std":
+  def merge(self, other: Std) -> Std:
     _assert_same_shape(self.total, other.total)
     return type(self)(
         total=self.total + other.total,
