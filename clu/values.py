@@ -17,9 +17,8 @@
 A Metric should return one of the following types when compute() is called.
 """
 
-import abc
 import dataclasses
-from typing import Any, Union
+from typing import Any, Union, Protocol, runtime_checkable
 
 import jax.numpy as jnp
 import numpy as np
@@ -28,13 +27,14 @@ ArrayType = Union[np.ndarray, jnp.ndarray]
 ScalarType = Union[int, float, np.number, np.ndarray, jnp.ndarray]
 
 
-class Value(abc.ABC):
+@runtime_checkable
+class Value(Protocol):
   """Class defining available metric computation return values.
 
   Types mirror those available in MetricWriter. See
   clu/metric_writers/interface.py
   """
-  pass
+  value: Any
 
 
 @dataclasses.dataclass
