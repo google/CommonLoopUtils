@@ -815,8 +815,10 @@ class Std(Metric):
     if mask is None:
       mask = jnp.ones(values.shape[0], dtype=jnp.int32)
     return cls(
-        total=values.sum(),
-        sum_of_squares=jnp.where(mask, values**2, jnp.zeros_like(values)).sum(),
+        total=jnp.where(mask, values, jnp.zeros_like(values)).sum(),
+        sum_of_squares=jnp.where(
+            mask, values**2, jnp.zeros_like(values)
+        ).sum(),
         count=mask.sum(),
     )
 
