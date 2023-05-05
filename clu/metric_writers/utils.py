@@ -20,6 +20,7 @@ method of the writer depending on the type of the metric.
 """
 
 import collections
+import getpass
 import os
 import re
 from typing import Any, List, Mapping, Optional, Tuple, Union
@@ -97,6 +98,8 @@ def write_values(writer: MetricWriter, step: int,
       fn(step, vals, **dict(extra_args))
 
 
+
+
 def create_default_writer(
     logdir: Optional[epath.PathLike] = None,
     *,
@@ -114,7 +117,6 @@ def create_default_writer(
     just_logging: If True only use a LoggingWriter. This is useful in multi-host
       setups when only the first host should write metrics and all other hosts
       should only write to their own logs.
-    write_to_xm_measurements: If True uses XmMeasurementsWriter in addition.
       default (None) will automatically determine if you # GOOGLE-INTERNAL have
     asynchronous: If True return an AsyncMultiWriter to not block when writing
       metrics.
