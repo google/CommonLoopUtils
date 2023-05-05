@@ -194,7 +194,9 @@ class Metric:
 
     first = jax.tree_map(lambda x: x[0], self)
     remainder = jax.tree_map(lambda x: x[1:], self)
-    # TODO(b/160868467) Verify this adds no significant computational cost.
+    # According to b/160868467#comment4, usage of `jax.lax.scan` does not add a
+    # significant computational cost for simple metrics where e.g. `jnp.sum`
+    # could be used instead.
     return jax.lax.scan(reduce_step, first, remainder)[0]
 
   @classmethod
