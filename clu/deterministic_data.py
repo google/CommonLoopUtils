@@ -430,7 +430,7 @@ def create_dataset(dataset_builder: DatasetBuilder,
     if isinstance(rng, tf.Tensor):
       rngs = [x.numpy() for x in tf.random.experimental.stateless_split(rng, 3)]
     else:
-      rngs = list(jax.random.split(rng, 3))
+      rngs = list(jax.random.key_data(jax.random.split(rng, 3)))
   else:
     rngs = 3 * [[None, None]]
 
