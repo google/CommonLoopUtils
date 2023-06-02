@@ -27,10 +27,7 @@ tests_require = [
     "tensorflow",
     "tensorflow_datasets",
     # Temporarily disabling torch-2.0.0 since this fails Github actions.
-    "torch>=1.13.0,!=2.0.0",
-]
-pytorch_require = [
-    "torch>=1.13.0",
+    "torch>=1.13.0,<2.0.0",
 ]
 
 setup(
@@ -58,7 +55,7 @@ setup(
         "wrapt",
     ],
     tests_require=tests_require,
-    extras_require=dict(test=tests_require, pytorch=pytorch_require),
+    extras_require=dict(test=tests_require),
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Developers",
