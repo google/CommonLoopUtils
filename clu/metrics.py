@@ -650,6 +650,10 @@ class Collection:
     return flax.jax_utils.unreplicate(self)
 
 
+# Sentinel to make LastValue.__init__ support tree manipulations that use None.
+_default = object()
+
+
 @flax.struct.dataclass
 class LastValue(Metric):
   """Keeps the last average global batch value.
@@ -660,32 +664,43 @@ class LastValue(Metric):
   in cases when batch is distributed across multiple devices and need
   to be averaged later. However, we don't inherit from Average to
   maintain backward compatibility in case of isinstance(metric, Average)
-  check.  For backward compatibility this class can be initialized using the
-  keyword `LastValue(value=10)`  or  `total` and `count`.
+  check.  For backward compatibility this class can also be initialized as
+  if the constructor was __init__(value).
   """
   total: jnp.array
   count: jnp.array
 
   def __init__(
       self,
-      total: jnp.array | None = None,
-      count: jnp.array | None = None,
-      value: jnp.array | None = None,
+      total: jnp.array | _default = _default,
+      count: jnp.array | _default = _default,
+      value: jnp.array | _default = _default,
   ):
-    """Constructor which supports keyword argument value as initializer.
+    """Backward compatibility constructor.
 
-    If  "value" is provided, then  "total" should *not* be provided.
+    It is intended to be constructed as __init__(total, count). When doing so
+    the arguments are assigned as instance attributes without extra operations.
+    For backward compatibility it also supports __init__(value) code paths.
 
     Args:
       total: Total value.
-      count: Count of examples, 1 if not provided
-      value: Value, if provided, will be assumed to be "count" of values.
+      count: Count of examples, 1 if not provided.
+      value: Value, if provided, will be assumed to be "total" of values.
     """
-    count = count if count is not None else jnp.array(1, dtype=jnp.int32)
-    if value is not None:
-      if total is not None:
-        raise ValueError("Only one of 'total' and 'value' should be None. "
-                         f'Got {total}, {value}')
+    # Note: This code should not use None to detect a default argument, also it
+    # should avoid doing any logic when its being called by tree_utils.
+    # That is a requirement for tree manipulations where leafs that use other
+    # values like shapes/sharding information or even None.
+    # Per https://flax.readthedocs.io/en/latest/api_reference/flax.struct.html
+    # classes should provide a static create() method, but here we overload
+    # the constructor for backward compatibility when it was LastValue(value).
+    count = count if count is not _default else jnp.array(1, dtype=jnp.int32)
+    if (value is _default) == (total is _default):
+      raise ValueError(
+          "Exactly one of 'total' and 'value' should be passed. "
+          f"Got {total}, {value}"
+      )
+    if total is _default:
       total = value * count
     object.__setattr__(self, "total", total)
     object.__setattr__(self, "count", count)

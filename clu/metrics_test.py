@@ -184,6 +184,21 @@ class MetricsTest(parameterized.TestCase):
     metric = metrics.LastValue(value=2.0, count=3)
     self.assertEqual(metric.total, 6.0)
 
+  def test_metric_last_value_tree_manipulation(self):
+    # Test mapping leaves to other non array values (e.g.: None).
+    metric = metrics.LastValue(value=2.0)
+    metric = jax.tree_map(lambda x: None, metric)
+    self.assertIsNone(metric.total, None)
+    self.assertIsNone(metric.count, None)
+    metric = metrics.LastValue(value=2.0, count=3)
+    metric = jax.tree_map(lambda x: None, metric)
+    self.assertIsNone(metric.total, None)
+    self.assertIsNone(metric.count, None)
+    metric = metrics.LastValue(2.0)
+    metric = jax.tree_map(lambda x: None, metric)
+    self.assertIsNone(metric.total, None)
+    self.assertIsNone(metric.count, None)
+
   def test_from_fun_with_single_output(self):
 
     def accuracy(*, logits, labels, **_):
