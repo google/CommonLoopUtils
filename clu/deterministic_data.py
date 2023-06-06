@@ -290,7 +290,7 @@ def _preprocess_with_per_example_rng(ds: tf.data.Dataset,
   """
 
   def _fn(example_index: int, features: Features) -> Features:
-    example_index = tf.cast(example_index, tf.int32)
+    example_index = tf.cast(example_index, tf.int64)
     features["rng"] = tf.random.experimental.stateless_fold_in(
         tf.cast(rng, tf.int64), example_index)
     processed = preprocess_fn(features)

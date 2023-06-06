@@ -207,15 +207,15 @@ class DeterministicDataTest(tf.test.TestCase, parameterized.TestCase):
     self.assertAllClose([
         {
             "a": 37.2,
-            "b": 0.79542184
+            "b": 0.6987314
         },
         {
             "a": 31.2,
-            "b": 0.45482683
+            "b": 0.26166475
         },
         {
             "a": 39.0,
-            "b": 0.85335636
+            "b": 0.17209172
         },
     ], list(ds_out))
 
