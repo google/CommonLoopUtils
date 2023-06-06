@@ -19,7 +19,6 @@ import collections
 import concurrent.futures
 import contextlib
 import os
-import queue
 import time
 from typing import Callable, Iterable, Optional, Sequence
 
@@ -44,16 +43,6 @@ MetricWriter = metric_writers.MetricWriter
 def _squareit(x):
   """Minimalistic function for use in _wait_jax_async_dispatch()."""
   return x**2
-
-
-def _wait_jax_async_dispatch():
-  """Creates a simple JAX program and waits for its completion.
-
-  Since JAX operations are put in a queue and dispatched one after the other,
-  all previously enqueued computations will be finished after a call to this
-  function.
-  """
-  _squareit(jnp.array(0.)).block_until_ready()
 
 
 def _format_secs(secs: float):
@@ -197,7 +186,6 @@ class ReportProgress(PeriodicAction):
       num_train_steps = None
     self._num_train_steps = num_train_steps
     self._writer = writer
-    self._waiting_for_part = collections.defaultdict(queue.Queue)
     self._time_per_part = collections.defaultdict(float)
     self._t0 = time.monotonic()
     # Using max_worker=1 guarantees that the calls to _wait_jax_async_dispatch()
@@ -269,20 +257,40 @@ class ReportProgress(PeriodicAction):
         dispatch queue, then both measurements are identical.
     """
     # pylint: enable=g-doc-return-or-yield
-    def start_measurement():
-      if wait_jax_async_dispatch:
-        _wait_jax_async_dispatch()
-      self._waiting_for_part[name].put(time.monotonic())
-    self._executor.submit(start_measurement)
+    if not wait_jax_async_dispatch:
+      # Easy case, just measure walltime.
+      start = time.monotonic()
+      yield
+      self._time_per_part[name] += time.monotonic() - start
+      return
 
+    def start_measurement(barrier: jax.Array) -> float:
+      barrier.block_until_ready()
+      return time.monotonic()
+
+    def stop_measurement(
+        start_future: concurrent.futures.Future[float], barrier: jax.Array
+    ):
+      barrier.block_until_ready()
+      self._time_per_part[name] += time.monotonic() - start_future.result()
+
+    # Call _squareit on this thread so that it is guaranteed to be dispatched
+    # to the TPU before any computations inside `yield`.
+    start_future = self._executor.submit(
+        start_measurement, barrier=_squareit(jnp.array(0.0))
+    )
     yield
 
-    def stop_measurement():
-      if wait_jax_async_dispatch:
-        _wait_jax_async_dispatch()
-      dt = time.monotonic() - self._waiting_for_part[name].get()
-      self._time_per_part[name] += dt
-    self._executor.submit(stop_measurement)
+    # Same pattern: _squareit is dispatched after any programs dispatched from
+    # within `yield` and before any programs following this method. The time
+    # difference between the completion of the first _squareit and the this one
+    # is the time the TPU spent executing programs dispatched from within
+    # `yield`.
+    self._executor.submit(
+        stop_measurement,
+        start_future=start_future,
+        barrier=_squareit(jnp.array(0.0)),
+    )
 
 
 class Profile(PeriodicAction):
