@@ -334,34 +334,27 @@ class MetricsTest(parameterized.TestCase):
 
   def test_collection_create_custom_mask(self):
 
-    def with_head1(logits, labels, head1_mask, **_):
-      return dict(logits=logits, labels=labels, mask=head1_mask)
+    def with_head1(logits, labels, mask, head1_mask, **_):
+      return dict(logits=logits, labels=labels, mask=head1_mask & mask)
 
-    def with_head2(logits, labels, head2_mask, **_):
-      return dict(logits=logits, labels=labels, mask=head2_mask)
+    def with_head2(logits, labels, mask, head2_mask, **_):
+      return dict(logits=logits, labels=labels, mask=head2_mask & mask)
 
     collection = metrics.Collection.create(
         head1_accuracy=metrics.Accuracy.from_fun(with_head1),
         head2_accuracy=metrics.Accuracy.from_fun(with_head2)
     )
-    with self.assertRaisesRegex(
-        ValueError, "but a 'mask' field was already given"):
-      collection.single_from_model_output(
-          logits=jnp.array([[-1., 1.], [1., -1.]]),
-          labels=jnp.array([0, 0]),  # i.e. 1st incorrect, 2nd correct
-          head1_mask=jnp.array([True, False]),  # ignore the 2nd.
-          head2_mask=jnp.array([True, False]),  # ignore the 2nd.
-          mask=jnp.array([False, True]),  # raises the error.
-      )
 
     chex.assert_trees_all_close(
         collection.single_from_model_output(
-            logits=jnp.array([[-1., 1.], [1., -1.]]),
+            logits=jnp.array([[-1.0, 1.0], [1.0, -1.0]]),
             labels=jnp.array([0, 0]),  # i.e. 1st incorrect, 2nd correct
+            mask=jnp.array([True, True]),
             head1_mask=jnp.array([True, False]),  # ignore the 2nd.
             head2_mask=jnp.array([False, True]),  # ignore the 1st.
         ).compute(),
-        {"head1_accuracy": 0.0, "head2_accuracy": 1.0})
+        {"head1_accuracy": 0.0, "head2_accuracy": 1.0},
+    )
 
   def test_collection_create_collection(self):
     collection = metrics.Collection.create_collection(

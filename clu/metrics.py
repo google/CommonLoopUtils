@@ -257,10 +257,6 @@ class Metric:
           output = dict(output)
           # pop mask to avoid multiple arg error later.
           output_mask = output.pop("mask", None)
-          if mask is not None:
-            raise ValueError(
-                "fun %s provided a mask, but a 'mask' field was already "
-                "given in the model output" % (fun,))
           mask = output_mask
         # Ignore the mask if its first dimension doesn't match that of the
         # output of `fun`.
