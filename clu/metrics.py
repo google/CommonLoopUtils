@@ -361,18 +361,20 @@ class CollectingMetric(Metric):
     from clu import asynclib
 
     def evaluate(params):
-      ms = MyCollection.empty()
       pool = asynclib.Pool()
 
       @pool
-      def merge(update):
-        nonlocal ms
-        ms = ms.merge(update)
+      def copy_to_host(update):
+        return jax.tree_map(np.asarray, update)
 
+      futures = []
       for batch in eval_ds:
-        merge(eval_step(params, batch))
+        futures.append(copy_to_host(eval_step(params, batch)))
 
-      pool.join()
+      ms = MyCollection.empty()
+      for future in futures:
+        ms = ms.merge(future.result())
+
       return ms.compute()
   """
 
