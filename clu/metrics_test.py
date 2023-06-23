@@ -466,17 +466,21 @@ class MetricsTest(parameterized.TestCase):
     chex.assert_trees_all_close(reduced.compute(), {"value": np.ones([16, 4])})
 
   def test_collecting_metric_async(self):
-    metric = CollectingMetricAccuracy.empty()
     pool = asynclib.Pool()
 
     @pool
-    def merge(update):
-      nonlocal metric
-      metric = metric.merge(update)
+    def copy_to_host(update):
+      return jax.tree_map(np.asarray, update)
 
+    futures = []
+    from_model_output = jax.jit(CollectingMetricAccuracy.from_model_output)
     for model_output in self.model_outputs:
-      merge(jax.jit(CollectingMetricAccuracy.from_model_output)(**model_output))
-    pool.join()
+      futures.append(copy_to_host(from_model_output(**model_output)))
+
+    metric = CollectingMetricAccuracy.empty()
+    for future in futures:
+      metric = metric.merge(future.result())
+
     result = metric.compute()
     chex.assert_trees_all_close(result, 0.75)
 
