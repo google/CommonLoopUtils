@@ -19,8 +19,6 @@ clu.metrics.Metric], and automatically writes to the appropriate typed write
 method of the writer depending on the type of the metric.
 """
 
-# pylint: disable=g-importing-member
-
 import collections
 import getpass
 import os
@@ -31,10 +29,10 @@ from absl import flags
 from absl import logging
 from clu import values
 from clu.metric_writers.async_writer import AsyncMultiWriter
-from clu.metric_writers.summary_writer import SummaryWriter
 from clu.metric_writers.interface import MetricWriter
 from clu.metric_writers.logging_writer import LoggingWriter
 from clu.metric_writers.multi_writer import MultiWriter
+from clu.metric_writers.summary_writer import SummaryWriter
 from etils import epath
 import jax.numpy as jnp
 import numpy as np
