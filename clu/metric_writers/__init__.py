@@ -41,15 +41,16 @@ Usage:
 """
 
 # pylint: disable=unused-import
+# pylint: disable=g-importing-member
 
 
 from clu.metric_writers.async_writer import AsyncMultiWriter
 from clu.metric_writers.async_writer import AsyncWriter
 from clu.metric_writers.async_writer import ensure_flushes
+from clu.metric_writers.summary_writer import SummaryWriter
 from clu.metric_writers.interface import MetricWriter
 from clu.metric_writers.logging_writer import LoggingWriter
 from clu.metric_writers.multi_writer import MultiWriter
-from clu.metric_writers.summary_writer import SummaryWriter
 from clu.metric_writers.utils import create_default_writer
 from clu.metric_writers.utils import write_values
 
