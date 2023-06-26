@@ -31,10 +31,10 @@ from absl import flags
 from absl import logging
 from clu import values
 from clu.metric_writers.async_writer import AsyncMultiWriter
-from clu.metric_writers.summary_writer import SummaryWriter
 from clu.metric_writers.interface import MetricWriter
 from clu.metric_writers.logging_writer import LoggingWriter
 from clu.metric_writers.multi_writer import MultiWriter
+from clu.metric_writers.summary_writer import SummaryWriter
 from etils import epath
 import jax.numpy as jnp
 import numpy as np
@@ -44,17 +44,22 @@ FLAGS = flags.FLAGS
 
 
 def _is_scalar(value: Any) -> bool:
-  if isinstance(value, values.Scalar) or isinstance(value,
-                                                    (int, float, np.number)):
+  if isinstance(value, values.Scalar) or isinstance(
+      value, (int, float, np.number)
+  ):
     return True
   if isinstance(value, (np.ndarray, jnp.ndarray)):
     return value.ndim == 0 or value.size <= 1
   return False
 
 
-def write_values(writer: MetricWriter, step: int,
-                 metrics: Mapping[str, Union[values.Value, values.ArrayType,
-                                             values.ScalarType]]):
+def write_values(
+    writer: MetricWriter,
+    step: int,
+    metrics: Mapping[
+        str, Union[values.Value, values.ArrayType, values.ScalarType]
+    ],
+):
   """Writes all provided metrics.
 
   Allows providing a mapping of name to Value object, where each Value
@@ -70,8 +75,9 @@ def write_values(writer: MetricWriter, step: int,
   histogram_num_buckets = collections.defaultdict(int)
   for k, v in metrics.items():
     if isinstance(v, values.Summary):
-      writes[(writer.write_summaries, frozenset({"metadata": v.metadata
-                                                }.items()))][k] = v.value
+      writes[
+          (writer.write_summaries, frozenset({"metadata": v.metadata}.items()))
+      ][k] = v.value
     elif _is_scalar(v):
       if isinstance(v, values.Scalar):
         writes[(writer.write_scalars, frozenset())][k] = v.value
@@ -87,8 +93,10 @@ def write_values(writer: MetricWriter, step: int,
       writes[(writer.write_histograms, frozenset())][k] = v.value
       histogram_num_buckets[k] = v.num_buckets
     elif isinstance(v, values.Audio):
-      writes[(writer.write_audios,
-              frozenset({"sample_rate": v.sample_rate}.items()))][k] = v.value
+      writes[(
+          writer.write_audios,
+          frozenset({"sample_rate": v.sample_rate}.items()),
+      )][k] = v.value
     else:
       raise ValueError("Metric: ", k, " has unsupported value: ", v)
 
@@ -107,7 +115,8 @@ def create_default_writer(
     *,
     just_logging: bool = False,
     asynchronous: bool = True,
-    collection: Optional[str] = None) -> MultiWriter:
+    collection: Optional[str] = None,
+) -> MultiWriter:
   """Create the default writer for the platform.
 
   On most platforms this will create a MultiWriter that writes to multiple back

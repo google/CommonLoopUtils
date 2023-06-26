@@ -25,10 +25,10 @@ from clu import values
 from clu.metric_writers import utils
 from clu.metric_writers.async_writer import AsyncMultiWriter
 from clu.metric_writers.async_writer import AsyncWriter
-from clu.metric_writers.summary_writer import SummaryWriter
 from clu.metric_writers.interface import MetricWriter
 from clu.metric_writers.logging_writer import LoggingWriter
 from clu.metric_writers.multi_writer import MultiWriter
+from clu.metric_writers.summary_writer import SummaryWriter
 import clu.metrics
 import flax.struct
 import jax.numpy as jnp
@@ -129,17 +129,20 @@ class MetricWriterTest(tf.test.TestCase, parameterized.TestCase):
         "image": ImageMetric(jnp.asarray([[4, 5], [1, 2]])),
     }
     histogram_metrics = {
-        "hist":
-            HistogramMetric(value=jnp.asarray([7, 8]), num_buckets=num_buckets),
-        "hist2":
-            HistogramMetric(
-                value=jnp.asarray([9, 10]), num_buckets=num_buckets),
+        "hist": HistogramMetric(
+            value=jnp.asarray([7, 8]), num_buckets=num_buckets
+        ),
+        "hist2": HistogramMetric(
+            value=jnp.asarray([9, 10]), num_buckets=num_buckets
+        ),
     }
     audio_metrics = {
-        "audio":
-            AudioMetric(value=jnp.asarray([1, 5]), sample_rate=sample_rate),
-        "audio2":
-            AudioMetric(value=jnp.asarray([1, 5]), sample_rate=sample_rate + 2),
+        "audio": AudioMetric(
+            value=jnp.asarray([1, 5]), sample_rate=sample_rate
+        ),
+        "audio2": AudioMetric(
+            value=jnp.asarray([1, 5]), sample_rate=sample_rate + 2
+        ),
     }
     text_metrics = {
         "text": TextMetric(value="hello"),
@@ -148,10 +151,10 @@ class MetricWriterTest(tf.test.TestCase, parameterized.TestCase):
         "lr": HyperParamMetric(value=0.01),
     }
     summary_metrics = {
-        "summary":
-            SummaryMetric(value=jnp.asarray([2, 3, 10]), metadata="some info"),
-        "summary2":
-            SummaryMetric(value=jnp.asarray([2, 3, 10]), metadata=5),
+        "summary": SummaryMetric(
+            value=jnp.asarray([2, 3, 10]), metadata="some info"
+        ),
+        "summary2": SummaryMetric(value=jnp.asarray([2, 3, 10]), metadata=5),
     }
     metrics = {
         **scalar_metrics,
@@ -166,29 +169,36 @@ class MetricWriterTest(tf.test.TestCase, parameterized.TestCase):
     utils.write_values(writer, step, metrics)
 
     writer.write_scalars.assert_called_once_with(
-        step, {k: m.compute() for k, m in scalar_metrics.items()})
-    writer.write_images.assert_called_once_with(step,
-                                                _to_summary(image_metrics))
+        step, {k: m.compute() for k, m in scalar_metrics.items()}
+    )
+    writer.write_images.assert_called_once_with(
+        step, _to_summary(image_metrics)
+    )
     writer.write_histograms.assert_called_once_with(
         step,
         _to_summary(histogram_metrics),
-        num_buckets={k: v.num_buckets for k, v in histogram_metrics.items()})
+        num_buckets={k: v.num_buckets for k, v in histogram_metrics.items()},
+    )
     writer.write_audios.assert_called_with(
         step,
         ONEOF(_to_list_of_dicts(_to_summary(audio_metrics))),
-        sample_rate=ONEOF([sample_rate, sample_rate + 2]))
+        sample_rate=ONEOF([sample_rate, sample_rate + 2]),
+    )
     writer.write_texts.assert_called_once_with(step, _to_summary(text_metrics))
-    writer.write_hparams.assert_called_once_with(step,
-                                                 _to_summary(hparam_metrics))
+    writer.write_hparams.assert_called_once_with(
+        step, _to_summary(hparam_metrics)
+    )
     writer.write_summaries.assert_called_with(
         step,
         ONEOF(_to_list_of_dicts(_to_summary(summary_metrics))),
-        metadata=ONEOF(["some info", 5]))
+        metadata=ONEOF(["some info", 5]),
+    )
 
 
   def test_create_default_writer_summary_writer_is_added(self):
     writer = utils.create_default_writer(
-        logdir=self.get_temp_dir(), asynchronous=False)
+        logdir=self.get_temp_dir(), asynchronous=False
+    )
     self.assertTrue(any(isinstance(w, SummaryWriter) for w in writer._writers))
     writer = utils.create_default_writer(logdir=None, asynchronous=False)
     self.assertFalse(any(isinstance(w, SummaryWriter) for w in writer._writers))
