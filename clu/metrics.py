@@ -57,6 +57,7 @@ Synopsis:
 """
 from __future__ import annotations
 from collections.abc import Mapping, Sequence
+import inspect
 from typing import Any, TypeVar, Protocol
 
 from absl import logging
@@ -534,8 +535,11 @@ class Collection:
         _reduction_counter=_ReductionCounter(jnp.array(1, dtype=jnp.int32)),
         **{
             metric_name: metric.empty()
-            for metric_name, metric in cls.__annotations__.items()
-        })
+            for metric_name, metric in inspect.get_annotations(
+                cls, eval_str=True
+            ).items()
+        },
+    )
 
   @classmethod
   def _from_model_output(cls: type[C], **kwargs) -> C:
@@ -544,8 +548,11 @@ class Collection:
         _reduction_counter=_ReductionCounter(jnp.array(1, dtype=jnp.int32)),
         **{
             metric_name: metric.from_model_output(**kwargs)
-            for metric_name, metric in cls.__annotations__.items()
-        })
+            for metric_name, metric in inspect.get_annotations(
+                cls, eval_str=True
+            ).items()
+        },
+    )
 
   @classmethod
   def single_from_model_output(cls: type[C], **kwargs) -> C:
