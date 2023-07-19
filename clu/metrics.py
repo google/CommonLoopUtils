@@ -498,7 +498,7 @@ class Collection:
       A subclass of Collection with fields defined by provided `metrics`.
     """
     return flax.struct.dataclass(
-        type("_InlineCollection", (Collection,), {"__annotations__": metrics}))
+        type("_InlineCollection", (cls,), {"__annotations__": metrics}))
 
   @classmethod
   def create_collection(cls, **metrics: Metric) -> Collection:
