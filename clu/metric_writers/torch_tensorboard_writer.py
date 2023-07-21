@@ -65,8 +65,9 @@ class TorchTensorboardWriter(interface.MetricWriter):
           key, value, global_step=step, sample_rate=sample_rate)
 
   def write_texts(self, step: int, texts: Mapping[str, str]):
-    for key, value in texts.items():
-      self._writer.text(key, value, global_step=step)
+    raise NotImplementedError(
+        "TorchTensorBoardWriter does not support writing texts."
+    )
 
   def write_histograms(self,
                        step: int,
