@@ -33,7 +33,7 @@ tests_require = [
 setup(
     name="clu",
     version="0.0.9",
-    description=("Set of libraries for ML training loops in JAX."),
+    description="Set of libraries for ML training loops in JAX.",
     author="Common Loop Utils Authors",
     author_email="no-reply@google.com",
     long_description=open("README.md").read(),
@@ -49,7 +49,7 @@ setup(
         "jax",
         "jaxlib",
         "ml_collections",
-        "numpy",
+        "numpy==1.23.1",
         "packaging",
         "typing_extensions",
         "wrapt",
