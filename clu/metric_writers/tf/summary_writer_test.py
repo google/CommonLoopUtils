@@ -17,7 +17,7 @@
 import collections
 import os
 
-from clu.metric_writers import summary_writer
+from clu.metric_writers.tf import summary_writer
 import numpy as np
 import tensorflow as tf
 
