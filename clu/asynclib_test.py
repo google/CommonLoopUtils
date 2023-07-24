@@ -16,11 +16,11 @@
 
 from unittest import mock
 
+from absl.testing import absltest
 from clu import asynclib
-import tensorflow as tf
 
 
-class AsyncWriterTest(tf.test.TestCase):
+class AsyncWriterTest(absltest.TestCase):
 
   def test_async_execution(self):
     pool = asynclib.Pool()
@@ -135,4 +135,4 @@ class AsyncWriterTest(tf.test.TestCase):
 
 
 if __name__ == "__main__":
-  tf.test.main()
+  absltest.main()

@@ -18,12 +18,12 @@ import tempfile
 import time
 from unittest import mock
 
+from absl.testing import absltest
 from absl.testing import parameterized
 from clu import periodic_actions
-import tensorflow as tf
 
 
-class ReportProgressTest(tf.test.TestCase, parameterized.TestCase):
+class ReportProgressTest(parameterized.TestCase):
 
   def test_every_steps(self):
     hook = periodic_actions.ReportProgress(
@@ -71,9 +71,7 @@ class ReportProgressTest(tf.test.TestCase, parameterized.TestCase):
     ])
 
   def test_unknown_cardinality(self):
-    report = periodic_actions.ReportProgress(
-        every_steps=2,
-        num_train_steps=tf.data.UNKNOWN_CARDINALITY)
+    report = periodic_actions.ReportProgress(every_steps=2)
     t = time.monotonic()
     with self.assertLogs(level="INFO") as logs:
       self.assertFalse(report(1, t))
@@ -156,7 +154,7 @@ class DummyProfilerSession:
     self.end_session_call_steps.append(self.step)
 
 
-class ProfileTest(tf.test.TestCase):
+class ProfileTest(absltest.TestCase):
 
   @mock.patch.object(periodic_actions, "profiler", autospec=True)
   @mock.patch("time.monotonic")
@@ -183,12 +181,12 @@ class ProfileTest(tf.test.TestCase):
     for step in range(1, 18):
       mock_time.return_value = step - 0.5 if step == 9 else step
       hook(step)
-    self.assertAllEqual([3, 7, 14], start_steps)
+    self.assertEqual([3, 7, 14], start_steps)
     # Note: profiling 7..10 instead of 7..9 because 7..9 took only 1.5 seconds.
-    self.assertAllEqual([5, 10, 16], stop_steps)
+    self.assertEqual([5, 10, 16], stop_steps)
 
 
-class ProfileAllHostsTest(tf.test.TestCase):
+class ProfileAllHostsTest(absltest.TestCase):
 
   @mock.patch.object(periodic_actions, "profiler", autospec=True)
   def test_every_steps(self, mock_profiler):
@@ -207,10 +205,10 @@ class ProfileAllHostsTest(tf.test.TestCase):
         every_steps=7)
     for step in range(1, 18):
       hook(step)
-    self.assertAllEqual([3, 7, 14], start_steps)
+    self.assertEqual([3, 7, 14], start_steps)
 
 
-class PeriodicCallbackTest(tf.test.TestCase):
+class PeriodicCallbackTest(absltest.TestCase):
 
   def test_every_steps(self):
     callback = mock.Mock()
@@ -299,4 +297,4 @@ class PeriodicCallbackTest(tf.test.TestCase):
 
 
 if __name__ == "__main__":
-  tf.test.main()
+  absltest.main()
