@@ -93,14 +93,21 @@ class PreprocessSpecTest(parameterized.TestCase, tf.test.TestCase):
                                                   dict(all_ops()))
 
   def test_parsing_empty_string(self):
-    preprocess_fn = preprocess_spec.parse("", all_ops())
+    preprocess_fn = preprocess_spec.parse(
+        "", all_ops(), only_jax_types=False, log_features=False
+    )
     self.assertEqual(
-        str(preprocess_fn), "PreprocessFn(ops=[], only_jax_types=True)")
+        str(preprocess_fn), "PreprocessOps(ops=())")
 
   def test_multi_op_spec(self):
-    preprocess_fn = preprocess_spec.parse("to_float|rescale(3)", all_ops())
+    preprocess_fn = preprocess_spec.parse(
+        "to_float|rescale(3)",
+        all_ops(),
+        only_jax_types=False,
+        log_features=False,
+    )
     logging.info("preprocess_fn: %r", preprocess_fn)
-    self.assertEqual(str(preprocess_fn.ops), "[ToFloat(), Rescale(scale=3)]")
+    self.assertEqual(str(preprocess_fn.ops), "(ToFloat(), Rescale(scale=3))")
 
   def test_two_tensors(self):
     preprocess_fn = preprocess_spec.parse("rescale(scale=7)", all_ops())

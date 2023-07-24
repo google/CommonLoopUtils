@@ -21,12 +21,12 @@ strictly required we also recommend annotating preprocess ops as dataclasses.
 
 By convention the preprocessing function operates on dictionaries of features.
 Each op can change the dictionary by modifying, adding or removing dictionary
-entries. Dictionary entries should be tensors, keys should be strings.
+entries. dictionary entries should be tensors, keys should be strings.
 (For common data types we recommend using the feature keys used in TFDS.)
 
 Example spec: 'fn1|fn2(3)|fn3(keyword=5)'
 This will construct the following preprocessing function:
-def preprocess_fn(features: Dict[str, tf.Tensor]) -> Dict[str, tf.Tensor]:
+def preprocess_fn(features: dict[str, tf.Tensor]) -> dict[str, tf.Tensor]:
   features = fn1(features)
   features = fn2(features, 3)
   features = fn3(features, keyword=5)
@@ -37,11 +37,13 @@ See preprocess_spec_test.py for some simple examples.
 
 import abc
 import ast
+from collections.abc import Sequence
 import dataclasses
 import inspect
 import re
 import sys
-from typing import Dict, List, Sequence, Tuple, Type, TypeVar, Union
+from typing import TypeVar, Union
+import warnings
 
 from absl import logging
 from flax import traverse_util
@@ -53,11 +55,11 @@ from typing_extensions import Protocol
 
 # Feature dictionary. Arbitrary nested dictionary with string keys and
 # tf.Tensor as leaves.
-Tensor = Union[tf.Tensor, tf.RaggedTensor, tf.SparseTensor]
+Tensor = tf.Tensor | tf.RaggedTensor | tf.SparseTensor
 # TFDS allows for nested `Features` ...
-Features = Dict[str, Union[Tensor, "Features"]]
+Features = dict[str, Union[Tensor, "Features"]]
 # ... but it's usually a better idea NOT to nest them. Also better for PyType.
-FlatFeatures = Dict[str, Tensor]
+FlatFeatures = dict[str, Tensor]
 D = TypeVar("D", FlatFeatures, tf.data.Dataset)
 
 # Feature name for the random seed for tf.random.stateless_* ops. By
@@ -102,7 +104,7 @@ class MapTransform(abc.ABC):
     apply the single transformation to a single example (`FlatFeatures`) or a
     `tf.data.Dataset`. The latter is convenient for SeqIO users migrating to
     preprocess_spec.py. For multiple transformations we still recommend users
-    to use the `PreprocessFn` class.
+    to use the `PreprocessOps` class.
   - Enforces subclasses to be a dataclasses.
   """
 
@@ -176,7 +178,7 @@ class FilterTransform(abc.ABC):
     """Returns a True if the element should be kept."""
 
 
-def get_all_ops(module_name: str) -> List[Tuple[str, Type[PreprocessOp]]]:
+def get_all_ops(module_name: str) -> list[tuple[str, type[PreprocessOp]]]:
   """Helper to return all preprocess ops in a module.
 
   Modules that define processing ops can simply define:
@@ -222,7 +224,7 @@ class OnlyJaxTypes:
       equivalant in jax.numpy.
   """
 
-  types: List[tf.dtypes.DType] = dataclasses.field(
+  types: list[tf.dtypes.DType] = dataclasses.field(
       default_factory=_jax_supported_tf_types)
 
   def __call__(self, features: Features) -> Features:
@@ -252,6 +254,8 @@ class OnlyJaxTypes:
 class PreprocessFn:
   """Chain of preprocessing ops combined to a single preprocessing function.
 
+  This dataclass is deprecated. Use `clu.preprocess_spec.PreprocessOps` instead.
+
   Attributes:
     ops: List of feature transformations. Transformations will be applied in the
       given order.
@@ -261,6 +265,12 @@ class PreprocessFn:
 
   ops: Sequence[PreprocessOp]
   only_jax_types: bool
+
+  def __post_init__(self):
+    warnings.warn(
+        "PreprocessFn should be replaced with PreprocessOps.",
+        DeprecationWarning,
+    )
 
   def __call__(self, features: Features) -> Features:
     """Sequentially applies all `self.ops` and returns the result."""
@@ -286,7 +296,7 @@ class PreprocessFn:
         only_jax_types=self.only_jax_types or other.only_jax_types,
     )
 
-  def __getitem__(self, op_index: Union[int, slice]) -> "PreprocessFn":
+  def __getitem__(self, op_index: int | slice) -> "PreprocessFn":
     """Returns a `PreprocessFn` of the sliced ops."""
     return PreprocessFn(
         ops=self.ops[op_index]
@@ -295,9 +305,63 @@ class PreprocessFn:
     )
 
 
+@dataclasses.dataclass(frozen=True)
+class LogFeatures:
+  """Logs features when executed.
+
+  When this `PreprocessOp` is executed, then it describes features to the INFO
+  log. Useful for debugging feature transforms. Note that the feature transforms
+  would normally be traced (e.g. by TensorFlow) and the log messages then only
+  appear during the tracing, and not during the actual execution.
+
+  Attributes:
+    tag: Tag that is emitted together with the log message.
+  """
+  tag: str
+
+  def __call__(self, features: Features) -> Features:
+    logging.info("Features %s: %s",
+                 self.tag, _describe_features(features))
+    return features
+
+
+@dataclasses.dataclass(frozen=True)
+class PreprocessOps:
+  """Chain of preprocessing ops combined to a single preprocessing function.
+
+  Note that this class implements the `PreprocessOp` protocol.
+
+  Attributes:
+    ops: Sequence of feature transformations. Transformations will be applied in
+      the given order.
+  """
+
+  ops: tuple[PreprocessOp, ...]
+
+  def __call__(self, features: Features) -> Features:
+    """Sequentially applies all `self.ops` and returns the result."""
+    features = {**features}
+    for op in self.ops:
+      features = {**op(features)}
+    return features
+
+  def __add__(self, other: "PreprocessOps") -> "PreprocessOps":
+    """Concatenates two `PreprocessingFn`."""
+    if not isinstance(other, PreprocessOps):
+      raise ValueError("Can only add other instances of `PreprocessOps`.")
+    return PreprocessOps(ops=self.ops + other.ops)
+
+  def __getitem__(self, op_index: int | slice) -> "PreprocessOps":
+    """Returns a `PreprocessOps` of the sliced ops."""
+    return PreprocessOps(
+        ops=self.ops[op_index]
+        if isinstance(op_index, slice) else (self.ops[op_index],),
+    )
+
+
 def _get_op_class(
-    expr: List[ast.stmt],
-    available_ops: Dict[str, Type[PreprocessOp]]) -> Type[PreprocessOp]:
+    expr: list[ast.stmt],
+    available_ops: dict[str, type[PreprocessOp]]) -> type[PreprocessOp]:
   """Gets the process op fn from the given expression."""
   if isinstance(expr, ast.Call):
     fn_name = expr.func.id
@@ -313,7 +377,7 @@ def _get_op_class(
 
 
 def _parse_single_preprocess_op(
-    spec: str, available_ops: Dict[str, Type[PreprocessOp]]) -> PreprocessOp:
+    spec: str, available_ops: dict[str, type[PreprocessOp]]) -> PreprocessOp:
   """Parsing the spec for a single preprocess op.
 
   The op can just be the method name or the method name followed by any
@@ -357,18 +421,25 @@ def _parse_single_preprocess_op(
 
 
 def parse(spec: str,
-          available_ops: List[Tuple[str, Type[PreprocessOp]]],
+          available_ops: list[tuple[str, type[PreprocessOp]]],
           *,
-          only_jax_types: bool = True) -> PreprocessFn:
+          only_jax_types: bool = True,
+          log_features: bool = True) -> PreprocessOps:
   """Parses a preprocess spec; a '|' separated list of preprocess ops."""
   available_ops = dict(available_ops)
-  if not spec.strip():
-    ops = []
-  else:
-    ops = [
-        _parse_single_preprocess_op(s, available_ops) for s in spec.split("|")
-    ]
-  return PreprocessFn(ops, only_jax_types=only_jax_types)
+  ops = [LogFeatures("before preprocessing")] if log_features else []
+  for s in spec.split("|"):
+    if not s.strip():
+      continue
+    op = _parse_single_preprocess_op(s, available_ops)
+    ops.append(op)
+    if log_features:
+      ops.append(LogFeatures(f"after op {op}"))
+  if only_jax_types:
+    ops.append(OnlyJaxTypes())
+  if log_features:
+    ops.append(LogFeatures("after preprocessing"))
+  return PreprocessOps(tuple(ops))
 
 
 def _describe_features(features: Features) -> str:
