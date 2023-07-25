@@ -31,29 +31,29 @@ expected to be instances of `jnp.array`.
 
 Synopsis:
 
+  # Note: Metrics do *not* work with `from __future__ import annotations`
+
   from clu import metrics
   import flax
   import jax
 
   @flax.struct.dataclass  # required for jax.tree_*
-  class Metrics(metrics.Collection):
+  class MyCollection(metrics.Collection):
     accuracy: metrics.Accuracy
     loss: metrics.Average.from_output("loss")
     loss_std: metrics.Std.from_output("loss")
 
-  def eval_step(ms, model, variables, inputs, labels):
-    loss, logits = get_loss_and_logits(model, variables, inputs, labels)
-    return ms.merge(Metrics.gather_from_model_output(
+  @jax.pmap
+  def eval_step(variables, metrics, inputs, labels):
+    loss, logits = get_loss_and_logits(variables, inputs, labels)
+    return metrics.merge(MyCollection.gather_from_model_output(
         loss=loss, logits=logits, labels=labels))
 
-  p_eval_step = jax.pmap(
-      eval_step, axis_name="batch", static_broadcasted_argnums=0)
-
-  def evaluate(model, p_variables, test_ds):
-    ms = flax.jax_utils.replicate(Metrics.empty())
+  def evaluate(variables_p, test_ds):
+    metrics = MyCollection.empty()
     for inputs, labels in test_ds:
-      ms = p_eval_step(ms, model, p_variables, inputs, labels)
-    return ms.unreplicate().compute()
+      metrics = eval_step(variables_p, metrics, inputs, labels)
+    return metrics.unreplicate().compute()
 """
 from __future__ import annotations
 from collections.abc import Mapping, Sequence
@@ -355,7 +355,7 @@ class CollectingMetric(Metric):
         return sklearn.metrics.average_precision_score(
             values["labels"], values["logits"][:, 1])
 
-  Note that this metric causes a sync barrier when the data is transfered to
+  Note that this metric causes a sync barrier when the data is transferred to
   the host. But this can be avoided by using `asynclib`:
 
     from clu import asynclib
@@ -488,7 +488,7 @@ class Collection:
 
       MyMetrics = metrics.Collection.create(accuracy=metrics.Accuracy)
 
-    To simulataneously create the class and initialize an instance use
+    To simultaneously create the class and initialize an instance use
     `Collection.create_collection` instead.
 
     Args:
