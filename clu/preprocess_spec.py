@@ -379,5 +379,5 @@ def _describe_features(features: Features) -> str:
     elif isinstance(v, dict):
       description[k] = _describe_features(v)
     else:
-      raise ValueError(f"Unsupported type {type(v)} at feature {k}.")
+      description[k] = f"Unsupported type {type(v)} at feature '{k}'."
   return str(description)
