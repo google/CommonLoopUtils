@@ -12,77 +12,67 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Helper function for creating and logging TF/JAX variable overviews."""
+"""Helper function for creating and logging JAX variable overviews."""
 
+from collections.abc import Callable, Mapping, Sequence
 import dataclasses
-from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Union
+from typing import Any
 
 from absl import logging
 
 import flax
 import jax
 import numpy as np
-import tensorflow as tf
 
-
-# TODO(b/200953513): Migrate away from logging imports (on module level)
-#                    to logging the actual usage. See b/200953513.
-
-
-ModuleOrVariables = Union[tf.Module, List[tf.Variable]]
-ParamsContainer = Union[tf.Module, Dict[str, np.ndarray],
-                        Mapping[str, Mapping[str, Any]]]
+_ParamsContainer = dict[str, np.ndarray] | Mapping[str, Mapping[str, Any]]
 
 
 @dataclasses.dataclass
-class ParamRow:
+class _ParamRow:
   name: str
-  shape: Tuple[int]
+  shape: tuple[int, ...]
   size: int
 
 
 @dataclasses.dataclass
-class ParamRowWithStats(ParamRow):
+class _ParamRowWithStats(_ParamRow):
   mean: float
   std: float
 
 
-def flatten_dict(input_dict: Dict[str, Any],
-                 *,
-                 prefix: str = "",
-                 delimiter: str = "/") -> Dict[str, Any]:
+def flatten_dict(
+    input_dict: dict[str, Any], *, prefix: str = "", delimiter: str = "/"
+) -> dict[str, Any]:
   """Flattens the keys of a nested dictionary."""
   output_dict = {}
   for key, value in input_dict.items():
     nested_key = f"{prefix}{delimiter}{key}" if prefix else key
     if isinstance(value, (dict, flax.core.FrozenDict)):
       output_dict.update(
-          flatten_dict(value, prefix=nested_key, delimiter=delimiter))
+          flatten_dict(value, prefix=nested_key, delimiter=delimiter)
+      )
     else:
       output_dict[nested_key] = value
   return output_dict
 
 
-def count_parameters(params: ParamsContainer) -> int:
+def _count_parameters(params: _ParamsContainer) -> int:
   """Returns the count of variables for the module or parameter dictionary."""
-  if isinstance(params, tf.Module):
-    return sum(np.prod(v.shape) for v in params.trainable_variables)  # pytype: disable=attribute-error
   params = flatten_dict(params)
   return sum(np.prod(v.shape) for v in params.values())
 
 
-def get_params(module: tf.Module) -> Tuple[List[str], List[np.ndarray]]:
-  """Returns the trainable variables of a module as flattened dictionary."""
-  assert isinstance(module, tf.Module), module
-  variables = sorted(module.trainable_variables, key=lambda v: v.name)
-  return [v.name for v in variables], [v.numpy() for v in variables]
+def count_parameters(params: _ParamsContainer) -> int:
+  """Returns the count of variables for the module or parameter dictionary."""
+
+  return _count_parameters(params)
 
 
-def get_parameter_rows(
-    params: ParamsContainer,
+def _get_parameter_rows(
+    params: _ParamsContainer,
     *,
     include_stats: bool = False,
-) -> List[Union[ParamRow, ParamRowWithStats]]:
+) -> list[_ParamRow | _ParamRowWithStats]:
   """Returns information about parameters as a list of dictionaries.
 
   Args:
@@ -97,19 +87,19 @@ def get_parameter_rows(
     A list of `ParamRow`, or `ParamRowWithStats`, depending on the passed value
     of `include_stats`.
   """
-  if isinstance(params, tf.Module):
-    names, values = get_params(params)
+  if not isinstance(params, (dict, flax.core.FrozenDict)):
+    raise ValueError(
+        f"Expected `params` to be a dictionary but got {type(params)}"
+    )
+  if params:
+    params = flatten_dict(params)
+    names, values = map(list, tuple(zip(*sorted(params.items()))))
   else:
-    assert isinstance(params, (dict, flax.core.FrozenDict))
-    if params:
-      params = flatten_dict(params)
-      names, values = map(list, tuple(zip(*sorted(params.items()))))
-    else:
-      names, values = [], []
+    names, values = [], []
 
   def make_row(name, value):
     if include_stats:
-      return ParamRowWithStats(
+      return _ParamRowWithStats(
           name=name,
           shape=value.shape,
           size=int(np.prod(value.shape)),
@@ -117,8 +107,9 @@ def get_parameter_rows(
           std=float(value.std()),
       )
     else:
-      return ParamRow(
-          name=name, shape=value.shape, size=int(np.prod(value.shape)))
+      return _ParamRow(
+          name=name, shape=value.shape, size=int(np.prod(value.shape))
+      )
 
   return [make_row(name, value) for name, value in zip(names, values)]
 
@@ -136,11 +127,11 @@ def _default_table_value_formatter(value):
 
 
 def make_table(
-    rows: List[Any],
+    rows: list[Any],
     *,
-    column_names: Optional[Sequence[str]] = None,
+    column_names: Sequence[str] | None = None,
     value_formatter: Callable[[Any], str] = _default_table_value_formatter,
-    max_lines: Optional[int] = None,
+    max_lines: int | None = None,
 ) -> str:
   """Renders a list of rows to a table.
 
@@ -201,16 +192,35 @@ def make_table(
   return "\n".join(lines)
 
 
-def get_parameter_overview(params: ParamsContainer,
-                           *,
-                           include_stats: bool = True,
-                           max_lines: Optional[int] = None) -> str:
+def _get_parameter_overview(
+    params: _ParamsContainer,
+    *,
+    include_stats: bool = True,
+    max_lines: int | None = None,
+) -> str:
+  """See get_parameter_overview()."""
+  if include_stats and isinstance(params, (dict, flax.core.FrozenDict)):
+    params = jax.tree_map(np.asarray, params)
+  rows = _get_parameter_rows(params, include_stats=include_stats)
+  total_weights = _count_parameters(params)
+  RowType = _ParamRowWithStats if include_stats else _ParamRow
+  # Pass in `column_names` to enable rendering empty tables.
+  column_names = [field.name for field in dataclasses.fields(RowType)]
+  table = make_table(rows, max_lines=max_lines, column_names=column_names)
+  return table + f"\nTotal: {total_weights:,}"
+
+
+def get_parameter_overview(
+    params: _ParamsContainer,
+    *,
+    include_stats: bool = True,
+    max_lines: int | None = None,
+) -> str:
   """Returns a string with variables names, their shapes, count.
 
   Args:
     params: Dictionary with parameters as NumPy arrays. The dictionary can be
-      nested. Alternatively a `tf.Module` can be provided, in which case the
-      `trainable_variables` of the module will be used.
+      nested.
     include_stats: If True, add columns with mean and std for each variable.
     max_lines: If not `None`, the maximum number of variables to include.
 
@@ -227,38 +237,50 @@ def get_parameter_overview(params: ParamsContainer,
   +----------------+---------------+------------+
   Total: 65,172,512
   """
-  if include_stats and isinstance(params, (dict, flax.core.FrozenDict)):
-    params = jax.tree_map(np.asarray, params)
-  rows = get_parameter_rows(params, include_stats=include_stats)
-  total_weights = count_parameters(params)
-  RowType = ParamRowWithStats if include_stats else ParamRow
-  # Pass in `column_names` to enable rendering empty tables.
-  column_names = [field.name for field in dataclasses.fields(RowType)]
-  table = make_table(rows, max_lines=max_lines, column_names=column_names)
-  return table + f"\nTotal: {total_weights:,}"
+
+  return _get_parameter_overview(
+      params, include_stats=include_stats, max_lines=max_lines
+  )
 
 
-def log_parameter_overview(params: ParamsContainer,
-                           *,
-                           include_stats: bool = True,
-                           max_lines: Optional[int] = None,
-                           msg: Optional[str] = None):
+def _log_parameter_overview(
+    params: _ParamsContainer,
+    *,
+    include_stats: bool = True,
+    max_lines: int | None = None,
+    msg: str | None = None,
+):
+  """See log_parameter_overview()."""
+
+  table = _get_parameter_overview(
+      params, include_stats=include_stats, max_lines=max_lines
+  )
+  lines = [msg] if msg else []
+  lines += table.split("\n")
+  # The table can be too large to fit into one log entry.
+  for i in range(0, len(lines), 80):
+    logging.info("\n%s", "\n".join(lines[i : i + 80]))
+
+
+def log_parameter_overview(
+    params: _ParamsContainer,
+    *,
+    include_stats: bool = True,
+    max_lines: int | None = None,
+    msg: str | None = None,
+):
   """Writes a table with variables name and shapes to INFO log.
 
   See get_parameter_overview for details.
 
   Args:
     params: Dictionary with parameters as NumPy arrays. The dictionary can be
-      nested. Alternatively a `tf.Module` can be provided, in which case the
-      `trainable_variables` of the module will be used.
+      nested.
     include_stats: If True, add columns with mean and std for each variable.
     max_lines: If not `None`, the maximum number of variables to include.
     msg: Message to be logged before the overview.
   """
-  table = get_parameter_overview(params, include_stats=include_stats,
-                                 max_lines=max_lines)
-  lines = [msg] if msg else []
-  lines += table.split("\n")
-  # The table can be too large to fit into one log entry.
-  for i in range(0, len(lines), 80):
-    logging.info("\n%s", "\n".join(lines[i:i + 80]))
+
+  _log_parameter_overview(
+      params, include_stats=include_stats, max_lines=max_lines, msg=msg
+  )
