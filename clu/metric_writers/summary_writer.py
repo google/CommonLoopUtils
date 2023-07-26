@@ -15,4 +15,4 @@
 """MetricWriter for writing to TF summary files."""
 # pylint: disable=unused-import
 
-from clu.metric_writers.tf.summary_writer import SummaryWriter
+from .tf.summary_writer import SummaryWriter
