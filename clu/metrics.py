@@ -27,7 +27,7 @@ Some common metrics, such as accuracy and loss average/standard deviation, and a
 The "model output" is a dictionary of values with unique keys that all have a
 specific meaning (such as `loss`, `logits`, and `labels`) and every metric
 depends on at least one such model output by name. These outputs are usually
-expected to be instances of `jnp.array`.
+expected to be instances of `jnp.ndarray`.
 
 Synopsis:
 
@@ -84,7 +84,7 @@ class FromFunCallable(Protocol):
 
 
 
-def _assert_same_shape(a: jnp.array, b: jnp.array):
+def _assert_same_shape(a: jnp.ndarray, b: jnp.ndarray):
   """Raises a `ValueError` if shapes of `a` and `b` don't match."""
   if a.shape != b.shape:
     raise ValueError(f"Expected same shape: {a.shape} != {b.shape}")
@@ -105,11 +105,11 @@ class Metric:
 
     @flax.struct.dataclass
     class Average(Metric):
-      total: jnp.array
-      count: jnp.array
+      total: jnp.ndarray
+      count: jnp.ndarray
 
       @classmethod
-      def from_model_output(cls, value: jnp.array, **_) -> Metric:
+      def from_model_output(cls, value: jnp.ndarray, **_) -> Metric:
         return cls(total=value.sum(), count=np.prod(value.shape))
 
       def merge(self, other: Metric) -> Metric:
@@ -159,7 +159,7 @@ class Metric:
   def _reduce_merge(self: M, other: M) -> M:
     return self.merge(other)
 
-  def compute(self) -> jnp.array:
+  def compute(self) -> jnp.ndarray:
     """Computes final metrics from intermediate values."""
     raise NotImplementedError("Must override compute()")
 
@@ -431,7 +431,7 @@ class CollectingMetric(Metric):
 class _ReductionCounter(Metric):
   """Pseudo metric that keeps track of the total number of `.merge()`."""
 
-  value: jnp.array
+  value: jnp.ndarray
 
   @classmethod
   def empty(cls) -> _ReductionCounter:
@@ -617,7 +617,7 @@ class Collection:
         for metric_name, metric in vars(self).items()
     })
 
-  def compute(self) -> dict[str, jnp.array]:
+  def compute(self) -> dict[str, jnp.ndarray]:
     """Returns a dictionary mapping metric field name to `Metric.compute()`."""
     _check_reduction_counter_ndim(self._reduction_counter)
     return {
@@ -665,14 +665,14 @@ class LastValue(Metric):
   check.  For backward compatibility this class can also be initialized as
   if the constructor was __init__(value).
   """
-  total: jnp.array
-  count: jnp.array
+  total: jnp.ndarray
+  count: jnp.ndarray
 
-  def __init__(
+  def __init__(  # pytype: disable=missing-parameter  # jnp-array
       self,
-      total: jnp.array | _default = _default,
-      count: jnp.array | _default = _default,
-      value: jnp.array | _default = _default,
+      total: jnp.ndarray | _default = _default,
+      count: jnp.ndarray | _default = _default,
+      value: jnp.ndarray | _default = _default,
   ):
     """Backward compatibility constructor.
 
@@ -709,7 +709,7 @@ class LastValue(Metric):
 
   @classmethod
   def from_model_output(
-      cls, value: jnp.array, mask: jnp.array | None = None, **_
+      cls, value: jnp.ndarray, mask: jnp.ndarray | None = None, **_
   ) -> LastValue:
     if mask is None:
       mask = jnp.ones((value.shape or [()])[0])
@@ -731,7 +731,7 @@ class LastValue(Metric):
     )
 
   @property
-  def value(self) -> jnp.array:
+  def value(self) -> jnp.ndarray:
     # Explicitly allow NaN division as it is part of normal computation here.
     with jax.debug_nans(False):
       return self.total / self.count
@@ -756,8 +756,8 @@ class Average(Metric):
   See also documentation of `Metric`.
   """
 
-  total: jnp.array
-  count: jnp.array
+  total: jnp.ndarray
+  count: jnp.ndarray
 
   @classmethod
   def empty(cls) -> Average:
@@ -765,7 +765,7 @@ class Average(Metric):
 
   @classmethod
   def from_model_output(
-      cls, values: jnp.array, mask: jnp.array | None = None, **_
+      cls, values: jnp.ndarray, mask: jnp.ndarray | None = None, **_
   ) -> Average:
     if values.ndim == 0:
       values = values[None]
@@ -807,9 +807,9 @@ class Std(Metric):
   See also documentation of `Metric`.
   """
 
-  total: jnp.array
-  sum_of_squares: jnp.array
-  count: jnp.array
+  total: jnp.ndarray
+  sum_of_squares: jnp.ndarray
+  count: jnp.ndarray
 
   @classmethod
   def empty(cls) -> Std:
@@ -820,7 +820,7 @@ class Std(Metric):
 
   @classmethod
   def from_model_output(
-      cls, values: jnp.array, mask: jnp.array | None = None, **_
+      cls, values: jnp.ndarray, mask: jnp.ndarray | None = None, **_
   ) -> Std:
     if values.ndim == 0:
       values = values[None]
@@ -870,7 +870,7 @@ class Accuracy(Average):
 
   @classmethod
   def from_model_output(
-      cls, *, logits: jnp.array, labels: jnp.array, **kwargs
+      cls, *, logits: jnp.ndarray, labels: jnp.ndarray, **kwargs
   ) -> Accuracy:
     if logits.ndim != labels.ndim + 1 or labels.dtype != jnp.int32:
       raise ValueError(
