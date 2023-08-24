@@ -117,8 +117,8 @@ def _get_parameter_rows(
           name=name,
           shape=value.shape,
           size=int(np.prod(value.shape)),
-          mean=float(mean),
-          std=float(std),
+          mean=float(jax.device_get(mean)),
+          std=float(jax.device_get(std)),
       )
     mean_std_fn = _mean_std_jit if include_stats == "global" else _mean_std_np
     return jax.tree_util.tree_map(make_row, names, values, *mean_std_fn(values))
@@ -216,7 +216,7 @@ def _get_parameter_overview(
 ) -> str:
   """See get_parameter_overview()."""
   if include_stats is True and isinstance(params, (dict, flax.core.FrozenDict)):  # pylint: disable=g-bool-id-comparison
-    params = jax.tree_map(np.asarray, params)
+    params = jax.device_get(params)  # A no-op if already numpy array.
   rows = _get_parameter_rows(params, include_stats=include_stats)
   total_weights = _count_parameters(params)
   RowType = _ParamRowWithStats if include_stats else _ParamRow
