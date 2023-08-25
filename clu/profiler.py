@@ -18,7 +18,7 @@ Where results are stored depends on the platform (e.g. TensorBoard).
 """
 from collections.abc import Callable, Sequence
 import threading
-from typing import Any, Optional
+from typing import Optional, Protocol
 
 from absl import logging
 
