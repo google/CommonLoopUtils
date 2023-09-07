@@ -46,8 +46,10 @@ def _mean_std_jit(x):
   return jax.tree_util.tree_map(jnp.mean, x), jax.tree_util.tree_map(jnp.std, x)
 
 
-def _mean_std_np(x):
-  return jax.tree_util.tree_map(np.mean, x), jax.tree_util.tree_map(np.std, x)
+def _mean_std(x):
+  mean = jax.tree_util.tree_map(lambda x: x.mean(), x)
+  std = jax.tree_util.tree_map(lambda x: x.std(), x)
+  return mean, std
 
 
 def flatten_dict(
@@ -120,7 +122,7 @@ def _get_parameter_rows(
           mean=float(jax.device_get(mean)),
           std=float(jax.device_get(std)),
       )
-    mean_std_fn = _mean_std_jit if include_stats == "global" else _mean_std_np
+    mean_std_fn = _mean_std_jit if include_stats == "global" else _mean_std
     return jax.tree_util.tree_map(make_row, names, values, *mean_std_fn(values))
   else:
     def make_row(name, value):
