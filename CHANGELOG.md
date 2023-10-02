@@ -94,3 +94,17 @@ This will be the last release supporting Python 3.6.
 -   Fixes various issues with `clu.metrics`.
 
 This will be the last release supporting Python 3.7.
+
+## v0.0.9
+
+-   Fix pytype failures related to teaching pytype about NumPy scalar types.
+-   Fix a couple of docstring typos.
+-   Updates README and clu_synposis.ipynb
+
+Last release before dropping support for Python 3.8 and 3.9
+
+## v0.0.10
+
+-   `clu.parameter_overview` now supports JAX global arrays.
+-   Various small fixes in `clu.metrics` module.
+-   Removed some tensorflow dependencies.

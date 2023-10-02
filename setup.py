@@ -19,8 +19,14 @@ Install for development:
   pip intall -e . .[tests]
 """
 
+import sys
+
 from setuptools import find_packages
 from setuptools import setup
+
+
+if sys.version_info < (3, 10):
+  sys.exit("Python < 3.10 not supported anymore!")
 
 tests_require = [
     "pytest",
@@ -32,7 +38,7 @@ tests_require = [
 
 setup(
     name="clu",
-    version="0.0.9",
+    version="0.0.10",
     description="Set of libraries for ML training loops in JAX.",
     author="Common Loop Utils Authors",
     author_email="no-reply@google.com",
