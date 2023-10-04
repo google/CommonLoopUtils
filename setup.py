@@ -32,13 +32,12 @@ tests_require = [
     "pytest",
     "tensorflow",
     "tensorflow_datasets",
-    # Temporarily disabling torch-2.0.0 since this fails Github actions.
-    "torch>=1.13.0,<2.0.0",
+    "torch>=2.0.0",
 ]
 
 setup(
     name="clu",
-    version="0.0.10",
+    version="0.0.11",
     description="Set of libraries for ML training loops in JAX.",
     author="Common Loop Utils Authors",
     author_email="no-reply@google.com",
@@ -55,7 +54,7 @@ setup(
         "jax",
         "jaxlib",
         "ml_collections",
-        "numpy==1.23.1",
+        "numpy",
         "packaging",
         "typing_extensions",
         "wrapt",
