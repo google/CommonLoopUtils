@@ -309,6 +309,7 @@ class Profile(PeriodicAction):
       every_steps: Optional[int] = None,
       every_secs: Optional[float] = 3600.0,
       artifact_name: str = "[{step}] Profile",
+      profiler_options=None,
   ):
     """Initializes a new periodic profiler action.
 
@@ -323,6 +324,7 @@ class Profile(PeriodicAction):
       every_steps: See `PeriodicAction.__init__()`.
       every_secs: See `PeriodicAction.__init__()`.
       artifact_name: Name of the artifact to record.
+      profiler_options: Options for the profiler.
     """
     if not num_profile_steps and not profile_duration_ms:
       raise ValueError(
@@ -335,6 +337,7 @@ class Profile(PeriodicAction):
     self._session_started = None
     self._logdir = os.fspath(logdir)
     self._artifact_name = artifact_name
+    self._profiler_options = profiler_options
 
   def _should_trigger(self, step: int, t: float) -> bool:
     if self._session_running:
@@ -356,7 +359,7 @@ class Profile(PeriodicAction):
 
   def _start_session(self):
     try:
-      profiler.start(logdir=self._logdir)
+      profiler.start(logdir=self._logdir, options=self._profiler_options)
       self._session_running = True
       self._session_started = time.monotonic()
     except Exception as e:  # pylint: disable=broad-except
