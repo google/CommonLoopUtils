@@ -418,6 +418,8 @@ class CollectingMetric(Metric):
       @classmethod
       def from_model_output(cls: type[M], **model_output) -> M:
         def make_array(value):
+          if value is None:
+            value = jnp.nan
           value = jnp.array(value)
           # Can't jnp.concatenate() scalars, promote to shape=(1,) in that case.
           return value[None] if value.ndim == 0 else value
