@@ -91,10 +91,10 @@ class PeriodicAction(abc.ABC):
     self._every_secs = every_secs
     self._on_steps = set(on_steps or [])
     # Step and timestamp for the last time the action triggered.
-    self._previous_step = None
-    self._previous_time = None
+    self._previous_step: int = None
+    self._previous_time: float = None
     # Just for checking that __call__() was called every step.
-    self._last_step = None
+    self._last_step: int = None
 
   def _init_and_check(self, step: int, t: float):
     """Initializes and checks it was called at every step."""
