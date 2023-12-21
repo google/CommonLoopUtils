@@ -41,6 +41,11 @@ class _ParamRowWithStats(_ParamRow):
   std: float
 
 
+@dataclasses.dataclass
+class _ParamRowWithStatsAndSharding(_ParamRowWithStats):
+  sharding: tuple[int | None, ...]
+
+
 @jax.jit
 def _mean_std_jit(x):
   return jax.tree_util.tree_map(jnp.mean, x), jax.tree_util.tree_map(jnp.std, x)
@@ -84,7 +89,7 @@ def _get_parameter_rows(
     params: _ParamsContainer,
     *,
     include_stats: bool | str = False,
-) -> list[_ParamRow | _ParamRowWithStats]:
+) -> list[_ParamRow]:
   """Returns information about parameters as a list of dictionaries.
 
   Args:
@@ -103,9 +108,6 @@ def _get_parameter_rows(
     raise ValueError(
         f"Expected `params` to be a dictionary but got {type(params)}"
     )
-  if include_stats not in (False, True, "global"):  # Avoid typos.
-    raise ValueError(
-        f"include_stats must be False, True or 'global', got {include_stats!r}")
 
   if params:
     params = flatten_dict(params)
@@ -115,13 +117,18 @@ def _get_parameter_rows(
 
   if include_stats:
     def make_row(name, value, mean, std):
-      return _ParamRowWithStats(
+      kw = dict(
           name=name,
           shape=value.shape,
           size=int(np.prod(value.shape)),
           mean=float(jax.device_get(mean)),
           std=float(jax.device_get(std)),
       )
+      if include_stats == "global" and hasattr(value, "sharding"):
+        return _ParamRowWithStatsAndSharding(
+            sharding=tuple(value.sharding.spec), **kw
+        )
+      return _ParamRowWithStats(**kw)
     mean_std_fn = _mean_std_jit if include_stats == "global" else _mean_std
     return jax.tree_util.tree_map(make_row, names, values, *mean_std_fn(values))
   else:
@@ -221,7 +228,11 @@ def _get_parameter_overview(
     params = jax.device_get(params)  # A no-op if already numpy array.
   rows = _get_parameter_rows(params, include_stats=include_stats)
   total_weights = _count_parameters(params)
-  RowType = _ParamRowWithStats if include_stats else _ParamRow
+  RowType = {  # pylint: disable=invalid-name
+      False: _ParamRow,
+      True: _ParamRowWithStats,
+      "global": _ParamRowWithStatsAndSharding,
+  }[include_stats]
   # Pass in `column_names` to enable rendering empty tables.
   column_names = [field.name for field in dataclasses.fields(RowType)]
   table = make_table(rows, max_lines=max_lines, column_names=column_names)
