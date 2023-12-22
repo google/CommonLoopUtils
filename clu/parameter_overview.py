@@ -43,7 +43,7 @@ class _ParamRowWithStats(_ParamRow):
 
 @dataclasses.dataclass
 class _ParamRowWithStatsAndSharding(_ParamRowWithStats):
-  sharding: tuple[int | None, ...]
+  sharding: tuple[int | None, ...] | str
 
 
 @jax.jit
@@ -125,9 +125,14 @@ def _get_parameter_rows(
           std=float(jax.device_get(std)),
       )
       if include_stats == "global" and hasattr(value, "sharding"):
-        return _ParamRowWithStatsAndSharding(
-            sharding=tuple(value.sharding.spec), **kw
-        )
+        if hasattr(value.sharding, "spec"):
+          return _ParamRowWithStatsAndSharding(
+              sharding=tuple(value.sharding.spec), **kw
+          )
+        else:
+          return _ParamRowWithStatsAndSharding(
+              sharding=str(value.sharding), **kw
+          )
       return _ParamRowWithStats(**kw)
     mean_std_fn = _mean_std_jit if include_stats == "global" else _mean_std
     return jax.tree_util.tree_map(make_row, names, values, *mean_std_fn(values))
