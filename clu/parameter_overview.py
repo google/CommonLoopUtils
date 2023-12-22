@@ -32,6 +32,7 @@ _ParamsContainer = dict[str, np.ndarray] | Mapping[str, Mapping[str, Any]]
 class _ParamRow:
   name: str
   shape: tuple[int, ...]
+  dtype: str
   size: int
 
 
@@ -79,6 +80,12 @@ def _count_parameters(params: _ParamsContainer) -> int:
   return sum(np.prod(v.shape) for v in params.values())
 
 
+def _parameters_size(params: _ParamsContainer) -> int:
+  """Returns total size (bytes) for the module or parameter dictionary."""
+  params = flatten_dict(params)
+  return sum(v.nbytes for v in params.values())
+
+
 def count_parameters(params: _ParamsContainer) -> int:
   """Returns the count of variables for the module or parameter dictionary."""
 
@@ -120,6 +127,7 @@ def _get_parameter_rows(
       kw = dict(
           name=name,
           shape=value.shape,
+          dtype=str(value.dtype),
           size=int(np.prod(value.shape)),
           mean=float(jax.device_get(mean)),
           std=float(jax.device_get(std)),
@@ -139,7 +147,10 @@ def _get_parameter_rows(
   else:
     def make_row(name, value):
       return _ParamRow(
-          name=name, shape=value.shape, size=int(np.prod(value.shape))
+          name=name,
+          shape=value.shape,
+          dtype=str(value.dtype),
+          size=int(np.prod(value.shape)),
       )
     return jax.tree_util.tree_map(make_row, names, values)
 
@@ -232,7 +243,6 @@ def _get_parameter_overview(
   if include_stats is True and isinstance(params, (dict, flax.core.FrozenDict)):  # pylint: disable=g-bool-id-comparison
     params = jax.device_get(params)  # A no-op if already numpy array.
   rows = _get_parameter_rows(params, include_stats=include_stats)
-  total_weights = _count_parameters(params)
   RowType = {  # pylint: disable=invalid-name
       False: _ParamRow,
       True: _ParamRowWithStats,
@@ -241,7 +251,9 @@ def _get_parameter_overview(
   # Pass in `column_names` to enable rendering empty tables.
   column_names = [field.name for field in dataclasses.fields(RowType)]
   table = make_table(rows, max_lines=max_lines, column_names=column_names)
-  return table + f"\nTotal: {total_weights:,}"
+  total_weights = _count_parameters(params)
+  total_size = _parameters_size(params)
+  return table + f"\nTotal: {total_weights:,} -- {total_size:,} bytes"
 
 
 def get_parameter_overview(
