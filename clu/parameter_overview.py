@@ -83,7 +83,7 @@ def _count_parameters(params: _ParamsContainer) -> int:
 def _parameters_size(params: _ParamsContainer) -> int:
   """Returns total size (bytes) for the module or parameter dictionary."""
   params = flatten_dict(params)
-  return sum(v.nbytes for v in params.values())
+  return sum(np.prod(v.shape) * v.dtype.itemsize for v in params.values())
 
 
 def count_parameters(params: _ParamsContainer) -> int:
