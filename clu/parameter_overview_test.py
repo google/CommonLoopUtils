@@ -92,6 +92,14 @@ class JaxParameterOverviewTest(absltest.TestCase):
         FLAX_CONV2D_MAPPING_PARAMETER_OVERVIEW_WITH_STATS,
         parameter_overview.get_parameter_overview(variables))
 
+  def test_get_parameter_overview_shape_dtype_struct(self):
+    variables_shape_dtype_struct = jax.eval_shape(
+        lambda: CNN().init(jax.random.PRNGKey(42), jnp.zeros((2, 5, 5, 3))))
+    self.assertEqual(
+        FLAX_CONV2D_PARAMETER_OVERVIEW,
+        parameter_overview.get_parameter_overview(
+            variables_shape_dtype_struct["params"], include_stats=False))
+
   def test_printing_bool(self):
     self.assertEqual(
         parameter_overview._default_table_value_formatter(True), "True")
