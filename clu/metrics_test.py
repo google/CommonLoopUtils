@@ -1,4 +1,4 @@
-# Copyright 2023 The CLU Authors.
+# Copyright 2024 The CLU Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -525,6 +525,44 @@ class MetricsTest(parameterized.TestCase):
       # The merged metric _should not_ have weak types
       # If it does have a weak type the second call will cause a re-trace
       collection = merge_collection(model_output, collection)
+
+  @parameterized.product(
+      value_mask_pair=[
+          (1, None),
+          ([1, 2, 3], None),
+          ([1, 2, 3], [True, True, False]),
+          ([[1, 2], [2, 3], [3, 4]], None),
+          ([[1, 2], [2, 3], [3, 4]], [False, True, True]),
+          (
+              [[1, 2], [2, 3], [3, 4]],
+              [[False, True], [True, True], [True, True]],
+          ),
+          ([[[1, 2], [2, 3]], [[2, 1], [3, 4]], [[3, 1], [4, 1]]], None),
+          (
+              [[[1, 2], [2, 3]], [[2, 1], [3, 4]], [[3, 1], [4, 1]]],
+              [False, True, True],
+          ),
+      ],
+      metric_np_equivalent_pair=[
+          (metrics.Average, jnp.mean),
+          (metrics.Std, jnp.std),
+      ],
+  )
+  def test_tensor_aggregation_metrics_with_masks(
+      self, value_mask_pair, metric_np_equivalent_pair
+  ):
+    values, mask = value_mask_pair
+    metric, np_equivalent = metric_np_equivalent_pair
+    values = jnp.asarray(values)
+    masked = values
+    if mask is not None:
+      mask = jnp.asarray(mask)
+      masked = values[mask]
+    expected = np_equivalent(masked)
+
+    result = metric.from_model_output(values, mask=mask).compute()
+    # The lower precision is needed for the lower precision jitted version.
+    chex.assert_trees_all_close(result, expected, atol=1e-4, rtol=1e-4)
 
 
 if __name__ == "__main__":

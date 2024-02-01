@@ -1,4 +1,4 @@
-# Copyright 2023 The CLU Authors.
+# Copyright 2024 The CLU Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -742,6 +742,27 @@ class LastValue(Metric):
     return self.value
 
 
+def _broadcast_masks(values: jnp.ndarray, mask: jnp.ndarray | None):
+  """Checks and broadcasts mask for aggregating values."""
+  if values.ndim == 0:
+    values = values[None]
+  if mask is None:
+    mask = jnp.ones_like(values)
+  # Leading dimensions of mask and values must match.
+  if mask.shape[0] != values.shape[0]:
+    raise ValueError(
+        "Argument `mask` must have the same leading dimension as `values`. "
+        f"Received mask of dimension {mask.shape} "
+        f"and values of dimension {values.shape}."
+    )
+  # Broadcast mask to the same number of dimensions as values.
+  if mask.ndim < values.ndim:
+    mask = jnp.expand_dims(mask, axis=tuple(np.arange(mask.ndim, values.ndim)))
+  mask = mask.astype(bool)
+  utils.check_param(mask, dtype=bool, ndim=values.ndim)
+  return values, mask
+
+
 @flax.struct.dataclass
 class Average(Metric):
   """Computes the average of a scalar or a batch of tensors.
@@ -769,26 +790,14 @@ class Average(Metric):
   def from_model_output(
       cls, values: jnp.ndarray, mask: jnp.ndarray | None = None, **_
   ) -> Average:
-    if values.ndim == 0:
-      values = values[None]
-    if mask is None:
-      mask = jnp.ones_like(values)
-    # Leading dimensions of mask and values must match.
-    if mask.shape[0] != values.shape[0]:
-      raise ValueError(
-          f"Argument `mask` must have the same leading dimension as `values`. "
-          f"Received mask of dimension {mask.shape} "
-          f"and values of dimension {values.shape}.")
-    # Broadcast mask to the same number of dimensions as values.
-    if mask.ndim < values.ndim:
-      mask = jnp.expand_dims(
-          mask, axis=tuple(np.arange(mask.ndim, values.ndim)))
-    mask = mask.astype(bool)
-    utils.check_param(mask, dtype=bool, ndim=values.ndim)
+    values, mask = _broadcast_masks(values, mask)
     return cls(
         total=jnp.where(mask, values, jnp.zeros_like(values)).sum(),
-        count=jnp.where(mask, jnp.ones_like(values, dtype=jnp.int32),
-                        jnp.zeros_like(values, dtype=jnp.int32)).sum(),
+        count=jnp.where(
+            mask,
+            jnp.ones_like(values, dtype=jnp.int32),
+            jnp.zeros_like(values, dtype=jnp.int32),
+        ).sum(),
     )
 
   def merge(self, other: Average) -> Average:
@@ -804,9 +813,10 @@ class Average(Metric):
 
 @flax.struct.dataclass
 class Std(Metric):
-  """Computes the standard deviation of a scalar or a batch of scalars.
+  """Computes the standard deviation of a scalar or a batch of tensors.
 
-  See also documentation of `Metric`.
+  The result is always a single scalar. See also the documentation of `Average`
+  for the mask handling.
   """
 
   total: jnp.ndarray
@@ -824,17 +834,15 @@ class Std(Metric):
   def from_model_output(
       cls, values: jnp.ndarray, mask: jnp.ndarray | None = None, **_
   ) -> Std:
-    if values.ndim == 0:
-      values = values[None]
-    utils.check_param(values, ndim=1)
-    if mask is None:
-      mask = jnp.ones(values.shape[0], dtype=jnp.int32)
+    values, mask = _broadcast_masks(values, mask)
     return cls(
         total=jnp.where(mask, values, jnp.zeros_like(values)).sum(),
-        sum_of_squares=jnp.where(
-            mask, values**2, jnp.zeros_like(values)
+        sum_of_squares=jnp.where(mask, values**2, jnp.zeros_like(values)).sum(),
+        count=jnp.where(
+            mask,
+            jnp.ones_like(values, dtype=jnp.int32),
+            jnp.zeros_like(values, dtype=jnp.int32),
         ).sum(),
-        count=mask.sum(),
     )
 
   def merge(self, other: Std) -> Std:
