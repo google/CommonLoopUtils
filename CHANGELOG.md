@@ -108,3 +108,9 @@ Last release before dropping support for Python 3.8 and 3.9
 -   `clu.parameter_overview` now supports JAX global arrays.
 -   Various small fixes in `clu.metrics` module.
 -   Removed some tensorflow dependencies.
+
+## v0.0.11
+
+-   Removes numpy version pin
+-   Adds sharding annotations, dtype, total bytes to `parameter_overview`
+-   Makes `clu.metrics.Std` support same shapes as `clu.metrics.Average`
