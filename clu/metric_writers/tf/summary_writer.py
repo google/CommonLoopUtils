@@ -27,7 +27,7 @@ from clu.internal import utils
 from clu.metric_writers import interface
 import tensorflow as tf
 
-from tensorboard.plugins.hparams import api as hparams_api
+from tensorboard.plugins.hparams import summary_v2
 
 
 Array = interface.Array
@@ -95,7 +95,7 @@ class SummaryWriter(interface.MetricWriter):
 
   def write_hparams(self, hparams: Mapping[str, Any]):
     with self._summary_writer.as_default():
-      hparams_api.hparams(dict(utils.flatten_dict(hparams)))
+      summary_v2.hparams(dict(utils.flatten_dict(hparams)))
 
   def flush(self):
     self._summary_writer.flush()
