@@ -37,6 +37,11 @@ class _ParamRow:
 
 
 @dataclasses.dataclass
+class _ParamRowWithSharding(_ParamRow):
+  sharding: tuple[int | None, ...] | str
+
+
+@dataclasses.dataclass
 class _ParamRowWithStats(_ParamRow):
   mean: float
   std: float
@@ -92,6 +97,47 @@ def count_parameters(params: _ParamsContainer) -> int:
   return _count_parameters(params)
 
 
+def _make_row(name, value) -> _ParamRow:
+  return _ParamRow(
+      name=name,
+      shape=value.shape,
+      dtype=str(value.dtype),
+      size=int(np.prod(value.shape)),
+  )
+
+
+def _make_row_with_sharding(name, value) -> _ParamRowWithSharding:
+  row = _make_row(name, value)
+  if hasattr(value, "sharding"):
+    if hasattr(value.sharding, "spec"):
+      sharding = tuple(value.sharding.spec)
+    else:
+      sharding = str(value.sharding)
+  else:
+    sharding = ()
+  return _ParamRowWithSharding(**dataclasses.asdict(row), sharding=sharding)
+
+
+def _make_row_with_stats(name, value, mean, std) -> _ParamRowWithStats:
+  row = _make_row(name, value)
+  return _ParamRowWithStats(
+      **dataclasses.asdict(row),
+      mean=float(jax.device_get(mean)),
+      std=float(jax.device_get(std)),
+  )
+
+
+def _make_row_with_stats_and_sharding(
+    name, value, mean, std
+) -> _ParamRowWithStatsAndSharding:
+  row = _make_row_with_sharding(name, value)
+  return _ParamRowWithStatsAndSharding(
+      **dataclasses.asdict(row),
+      mean=float(jax.device_get(mean)),
+      std=float(jax.device_get(std)),
+  )
+
+
 def _get_parameter_rows(
     params: _ParamsContainer,
     *,
@@ -104,8 +150,11 @@ def _get_parameter_rows(
       nested. Alternatively a `tf.Module` can be provided, in which case the
       `trainable_variables` of the module will be used.
     include_stats: If True, add columns with mean and std for each variable.
+      If the string "sharding", add column a column with the sharding of the
+      variable.
       If the string "global", params are sharded global arrays and this
       function assumes it is called on every host, i.e. can use collectives.
+      The sharding of the variables is also added as a column.
 
   Returns:
     A list of `ParamRow`, or `ParamRowWithStats`, depending on the passed value
@@ -122,37 +171,25 @@ def _get_parameter_rows(
   else:
     names, values = [], []
 
-  if include_stats:
-    def make_row(name, value, mean, std):
-      kw = dict(
-          name=name,
-          shape=value.shape,
-          dtype=str(value.dtype),
-          size=int(np.prod(value.shape)),
-          mean=float(jax.device_get(mean)),
-          std=float(jax.device_get(std)),
-      )
-      if include_stats == "global" and hasattr(value, "sharding"):
-        if hasattr(value.sharding, "spec"):
-          return _ParamRowWithStatsAndSharding(
-              sharding=tuple(value.sharding.spec), **kw
-          )
-        else:
-          return _ParamRowWithStatsAndSharding(
-              sharding=str(value.sharding), **kw
-          )
-      return _ParamRowWithStats(**kw)
-    mean_std_fn = _mean_std_jit if include_stats == "global" else _mean_std
-    return jax.tree_util.tree_map(make_row, names, values, *mean_std_fn(values))
-  else:
-    def make_row(name, value):
-      return _ParamRow(
-          name=name,
-          shape=value.shape,
-          dtype=str(value.dtype),
-          size=int(np.prod(value.shape)),
-      )
-    return jax.tree_util.tree_map(make_row, names, values)
+  match include_stats:
+    case False:
+      return jax.tree_util.tree_map(_make_row, names, values)
+
+    case True:
+      mean_and_std = _mean_std(values)
+      return jax.tree_util.tree_map(
+          _make_row_with_stats, names, values, *mean_and_std)
+
+    case "global":
+      mean_and_std = _mean_std_jit(values)
+      return jax.tree_util.tree_map(
+          _make_row_with_stats_and_sharding, names, values, *mean_and_std)
+
+    case "sharding":
+      return jax.tree_util.tree_map(_make_row_with_sharding, names, values)
+
+    case _:
+      raise ValueError(f"Unknown `include_stats`: {include_stats}")
 
 
 def _default_table_value_formatter(value):
@@ -247,6 +284,7 @@ def _get_parameter_overview(
       False: _ParamRow,
       True: _ParamRowWithStats,
       "global": _ParamRowWithStatsAndSharding,
+      "sharding": _ParamRowWithSharding,
   }[include_stats]
   # Pass in `column_names` to enable rendering empty tables.
   column_names = [field.name for field in dataclasses.fields(RowType)]
@@ -267,9 +305,12 @@ def get_parameter_overview(
   Args:
     params: Dictionary with parameters as NumPy arrays. The dictionary can be
       nested.
-    include_stats: If True, add columns with mean and std for each variable. If
-      the string "global", params are sharded global arrays and this function
-      assumes it is called on every host, i.e. can use collectives.
+    include_stats: If True, add columns with mean and std for each variable.
+      If the string "sharding", add column a column with the sharding of the
+      variable.
+      If the string "global", params are sharded global arrays and this
+      function assumes it is called on every host, i.e. can use collectives.
+      The sharding of the variables is also added as a column.
     max_lines: If not `None`, the maximum number of variables to include.
 
   Returns:
