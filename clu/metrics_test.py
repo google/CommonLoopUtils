@@ -14,6 +14,8 @@
 
 """Tests for clu.metrics."""
 
+from __future__ import annotations
+
 import functools
 from unittest import mock
 
