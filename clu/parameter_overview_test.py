@@ -97,7 +97,7 @@ class JaxParameterOverviewTest(absltest.TestCase):
     rng = jax.random.PRNGKey(42)
     # Weights of a 2D convolution with 2 filters.
     variables = CNN().init(rng, jnp.zeros((2, 5, 5, 3)))
-    variables = jax.tree_map(jnp.ones_like, variables)
+    variables = jax.tree_util.tree_map(jnp.ones_like, variables)
     self.assertEqual(
         FLAX_CONV2D_PARAMETER_OVERVIEW,
         parameter_overview.get_parameter_overview(

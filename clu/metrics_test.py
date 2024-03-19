@@ -107,10 +107,12 @@ class MetricsTest(parameterized.TestCase):
     }
 
     # Stack all values. Can for example be used in a pmap().
-    self.model_outputs_stacked = jax.tree_map(lambda *args: jnp.stack(args),
-                                              *self.model_outputs)
-    self.model_outputs_masked_stacked = jax.tree_map(
-        lambda *args: jnp.stack(args), *self.model_outputs_masked)
+    self.model_outputs_stacked = jax.tree_util.tree_map(
+        lambda *args: jnp.stack(args), *self.model_outputs
+    )
+    self.model_outputs_masked_stacked = jax.tree_util.tree_map(
+        lambda *args: jnp.stack(args), *self.model_outputs_masked
+    )
 
   def make_compute_metric(self, metric_class, reduce, jit=True):
     """Returns a jitted function to compute metrics.
@@ -131,8 +133,9 @@ class MetricsTest(parameterized.TestCase):
             metric_class.from_model_output(**model_output)
             for model_output in model_outputs
         ]
-        metric_stacked = jax.tree_map(lambda *args: jnp.stack(args),
-                                      *metric_list)
+        metric_stacked = jax.tree_util.tree_map(
+            lambda *args: jnp.stack(args), *metric_list
+        )
         metric = metric_stacked.reduce()
       else:
         metric = metric_class.empty()
@@ -150,15 +153,23 @@ class MetricsTest(parameterized.TestCase):
     metric2 = metrics.LastValue.from_model_output(jnp.array([3, 4]))
     metric3 = metrics.LastValue.from_model_output(jnp.array([3, 4]),
                                                   jnp.array([0, 0]))
-    metric12 = jax.tree_map(lambda *args: jnp.stack(args), metric1, metric2)
-    metric21 = jax.tree_map(lambda *args: jnp.stack(args), metric2, metric1)
+    metric12 = jax.tree_util.tree_map(
+        lambda *args: jnp.stack(args), metric1, metric2
+    )
+    metric21 = jax.tree_util.tree_map(
+        lambda *args: jnp.stack(args), metric2, metric1
+    )
     self.assertEqual(metric12.reduce().value, 2.5)
 
     chex.assert_trees_all_equal(metric12.reduce().compute(),
                                 metric21.reduce().compute())
 
-    metric13 = jax.tree_map(lambda *args: jnp.stack(args), metric1, metric3)
-    metric31 = jax.tree_map(lambda *args: jnp.stack(args), metric1, metric3)
+    metric13 = jax.tree_util.tree_map(
+        lambda *args: jnp.stack(args), metric1, metric3
+    )
+    metric31 = jax.tree_util.tree_map(
+        lambda *args: jnp.stack(args), metric1, metric3
+    )
     self.assertEqual(metric13.reduce().value, 1.5)
     chex.assert_trees_all_equal(metric13.reduce().compute(),
                                 metric31.reduce().compute())
@@ -187,15 +198,15 @@ class MetricsTest(parameterized.TestCase):
   def test_metric_last_value_tree_manipulation(self):
     # Test mapping leaves to other non array values (e.g.: None).
     metric = metrics.LastValue(value=2.0)
-    metric = jax.tree_map(lambda x: None, metric)
+    metric = jax.tree_util.tree_map(lambda x: None, metric)
     self.assertIsNone(metric.total, None)
     self.assertIsNone(metric.count, None)
     metric = metrics.LastValue(value=2.0, count=3)
-    metric = jax.tree_map(lambda x: None, metric)
+    metric = jax.tree_util.tree_map(lambda x: None, metric)
     self.assertIsNone(metric.total, None)
     self.assertIsNone(metric.count, None)
     metric = metrics.LastValue(2.0)
-    metric = jax.tree_map(lambda x: None, metric)
+    metric = jax.tree_util.tree_map(lambda x: None, metric)
     self.assertIsNone(metric.total, None)
     self.assertIsNone(metric.count, None)
 
@@ -272,7 +283,9 @@ class MetricsTest(parameterized.TestCase):
   )
   def test_merge_asserts_shape(self, metric_cls):
     metric1 = metric_cls.from_model_output(jnp.arange(3.))
-    metric2 = jax.tree_map(lambda *args: jnp.stack(args), metric1, metric1)
+    metric2 = jax.tree_util.tree_map(
+        lambda *args: jnp.stack(args), metric1, metric1
+    )
     with self.assertRaisesRegex(ValueError, r"^Expected same shape"):
       metric1.merge(metric2)
 
@@ -287,7 +300,9 @@ class MetricsTest(parameterized.TestCase):
 
   def test_last_value_asserts_shape(self):
     metric1 = metrics.LastValue.from_model_output(jnp.arange(3.))
-    metric2 = jax.tree_map(lambda *args: jnp.stack(args), metric1, metric1)
+    metric2 = jax.tree_util.tree_map(
+        lambda *args: jnp.stack(args), metric1, metric1
+    )
     with self.assertRaisesRegex(ValueError, r"^Expected same shape"):
       metric1.merge(metric2)
 
@@ -407,8 +422,9 @@ class MetricsTest(parameterized.TestCase):
         for model_output in (model_outputs)
 
     ]
-    all_gather_mock.return_value = jax.tree_map(lambda *args: jnp.stack(args),
-                                                *collections)
+    all_gather_mock.return_value = jax.tree_util.tree_map(
+        lambda *args: jnp.stack(args), *collections
+    )
 
     def compute_collection(model_outputs):
       collection = Collection.gather_from_model_output(**model_outputs[0])
@@ -441,7 +457,9 @@ class MetricsTest(parameterized.TestCase):
         Collection.single_from_model_output(**model_output)
         for model_output in self.model_outputs
     ]
-    collection = jax.tree_map(lambda *args: jnp.stack(args), *collections)
+    collection = jax.tree_util.tree_map(
+        lambda *args: jnp.stack(args), *collections
+    )
     with self.assertRaisesRegex(ValueError, r"^Collection is still replicated"):
       collection.compute()
 
@@ -470,7 +488,7 @@ class MetricsTest(parameterized.TestCase):
 
     @pool
     def copy_to_host(update):
-      return jax.tree_map(np.asarray, update)
+      return jax.tree_util.tree_map(np.asarray, update)
 
     futures = []
     from_model_output = jax.jit(CollectingMetricAccuracy.from_model_output)
