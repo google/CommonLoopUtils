@@ -192,8 +192,8 @@ class Metric:
       # pylint: disable-next=protected-access
       return reduced._reduce_merge(metric), None
 
-    first = jax.tree_map(lambda x: x[0], self)
-    remainder = jax.tree_map(lambda x: x[1:], self)
+    first = jax.tree_util.tree_map(lambda x: x[0], self)
+    remainder = jax.tree_util.tree_map(lambda x: x[1:], self)
     # According to b/160868467#comment4, usage of `jax.lax.scan` does not add a
     # significant computational cost for simple metrics where e.g. `jnp.sum`
     # could be used instead.
@@ -365,7 +365,7 @@ class CollectingMetric(Metric):
 
       @pool
       def copy_to_host(update):
-        return jax.tree_map(np.asarray, update)
+        return jax.tree_util.tree_map(np.asarray, update)
 
       futures = []
       for batch in eval_ds:
@@ -397,7 +397,7 @@ class CollectingMetric(Metric):
       return other
     if self.values and not other.values:
       return self
-    return type(self)(jax.tree_map(np.asarray, values))
+    return type(self)(jax.tree_util.tree_map(np.asarray, values))
 
   def reduce(self) -> CollectingMetric:
     # Note that this is usually called from inside a `pmap()` via
