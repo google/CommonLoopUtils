@@ -114,3 +114,9 @@ Last release before dropping support for Python 3.8 and 3.9
 -   Removes numpy version pin
 -   Adds sharding annotations, dtype, total bytes to `parameter_overview`
 -   Makes `clu.metrics.Std` support same shapes as `clu.metrics.Average`
+
+## v0.0.12
+
+-   Switch from `jax.tree_map` (deprecated since JAX 0.4.26) to
+    `jax.tree_util.tree_map`.
+-   Improvements to parameter overview.
