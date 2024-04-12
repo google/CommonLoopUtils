@@ -25,9 +25,13 @@ from absl import logging
 
 from clu.internal import utils
 from clu.metric_writers import interface
+from etils import epy
 import tensorflow as tf
 
-from tensorboard.plugins.hparams import api as hparams_api
+with epy.lazy_imports():
+  # pylint: disable=g-import-not-at-top
+  from tensorboard.plugins.hparams import api as hparams_api
+  # pylint: enable=g-import-not-at-top
 
 
 Array = interface.Array
