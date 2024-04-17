@@ -49,7 +49,7 @@ setup(
     include_package_data=True,
     install_requires=[
         "absl-py",
-        "etils[epath]",
+        "etils[epath,epy]",
         "flax",
         "jax",
         "jaxlib",
