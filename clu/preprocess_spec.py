@@ -375,7 +375,7 @@ def _describe_features(features: Features) -> str:
   description = {}
   for k, v in features.items():
     if isinstance(v, (tf.Tensor, tf.RaggedTensor, tf.SparseTensor)):
-      description[k] = f"{v.dtype.name}{list(v.shape)}"
+      description[k] = f"{v.dtype.name}{v.shape}"
     elif isinstance(v, dict):
       description[k] = _describe_features(v)
     else:
