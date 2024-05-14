@@ -117,6 +117,6 @@ Last release before dropping support for Python 3.8 and 3.9
 
 ## v0.0.12
 
--   Switch from `jax.tree_map` (deprecated since JAX 0.4.26) to
+-   Switch from `jax.tree.map` (deprecated since JAX 0.4.26) to
     `jax.tree_util.tree_map`.
 -   Improvements to parameter overview.
