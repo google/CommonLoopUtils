@@ -95,21 +95,41 @@ class AsyncWriter(interface.MetricWriter):
 
   @_wrap_exceptions
   def write_audios(
-      self, step: int, audios: Mapping[str, Array], *, sample_rate: int):
+      self, step: int, audios: Mapping[str, Array], *, sample_rate: int
+  ):
     self._pool(self._writer.write_audios)(
-        step=step, audios=audios, sample_rate=sample_rate)
+        step=step, audios=audios, sample_rate=sample_rate
+    )
 
   @_wrap_exceptions
   def write_texts(self, step: int, texts: Mapping[str, str]):
     self._pool(self._writer.write_texts)(step=step, texts=texts)
 
   @_wrap_exceptions
-  def write_histograms(self,
-                       step: int,
-                       arrays: Mapping[str, Array],
-                       num_buckets: Optional[Mapping[str, int]] = None):
+  def write_histograms(
+      self,
+      step: int,
+      arrays: Mapping[str, Array],
+      num_buckets: Optional[Mapping[str, int]] = None,
+  ):
     self._pool(self._writer.write_histograms)(
-        step=step, arrays=arrays, num_buckets=num_buckets)
+        step=step, arrays=arrays, num_buckets=num_buckets
+    )
+
+  @_wrap_exceptions
+  def write_pointcloud(
+      self,
+      step: int,
+      point_cloud: Mapping[str, Array],
+      point_colors: Optional[Array] = None,
+      config_dict: Optional[Mapping[str, Any]] = None,
+  ):
+    self._pool(self._writer.write_pointcloud)(
+        step=step,
+        point_cloud=point_cloud,
+        point_colors=point_colors,
+        config_dict=config_dict,
+    )
 
   @_wrap_exceptions
   def write_hparams(self, hparams: Mapping[str, Any]):

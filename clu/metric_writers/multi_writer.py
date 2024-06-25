@@ -56,12 +56,24 @@ class MultiWriter(interface.MetricWriter):
     for w in self._writers:
       w.write_texts(step, texts)
 
-  def write_histograms(self,
-                       step: int,
-                       arrays: Mapping[str, Array],
-                       num_buckets: Optional[Mapping[str, int]] = None):
+  def write_histograms(
+      self,
+      step: int,
+      arrays: Mapping[str, Array],
+      num_buckets: Optional[Mapping[str, int]] = None,
+  ):
     for w in self._writers:
       w.write_histograms(step, arrays, num_buckets)
+
+  def write_pointcloud(
+      self,
+      step: int,
+      point_cloud: Mapping[str, Array],
+      point_colors: Optional[Array] = None,
+      config_dict: Optional[Mapping[str, Any]] = None,
+  ):
+    for w in self._writers:
+      w.write_pointcloud(step, point_cloud, point_colors, config_dict)
 
   def write_hparams(self, hparams: Mapping[str, Any]):
     for w in self._writers:

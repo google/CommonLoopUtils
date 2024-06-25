@@ -76,6 +76,24 @@ class LoggingWriter(interface.MetricWriter):
                      self._collection_str, key,
                      _get_histogram_as_string(histo, bins))
 
+  def write_pointcloud(
+      self,
+      step: int,
+      point_cloud: Array,
+      point_colors: Optional[Array] = None,
+  ):
+    logging.info(
+        "[%d]%s Got point cloud: %s.",
+        step,
+        self._collection_str,
+        {
+            "point_cloud": point_cloud.shape,
+            "point_colors": (
+                point_colors.shape if point_colors is not None else None
+            ),
+        },
+    )
+
   def write_hparams(self, hparams: Mapping[str, Any]):
     logging.info("[Hyperparameters]%s %s", self._collection_str, hparams)
 
