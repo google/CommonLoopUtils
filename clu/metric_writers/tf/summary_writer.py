@@ -28,6 +28,7 @@ from clu.metric_writers import interface
 from etils import epy
 import tensorflow as tf
 
+
 with epy.lazy_imports():
   # pylint: disable=g-import-not-at-top
   from tensorboard.plugins.hparams import api as hparams_api
@@ -96,6 +97,26 @@ class SummaryWriter(interface.MetricWriter):
       for key, value in arrays.items():
         buckets = None if num_buckets is None else num_buckets.get(key)
         tf.summary.histogram(key, value, step=step, buckets=buckets)
+
+  def write_pointcloud(
+      self,
+      step: int,
+      point_cloud: Mapping[str, Array],
+      point_colors: Optional[Mapping[str, Array]] = None,
+      config_dict: Optional[Mapping[str, Any]] = None,
+  ):
+    with self._summary_writer.as_default():
+      for (key, vertices), (_, colors), (_, config_dict) in zip(
+          point_cloud.items(), point_colors.items(), config_dict.items()
+      ):
+        print("using mesh summary form tf")
+        tf.summary.mesh(
+            key,
+            vertices=vertices,
+            colors=colors,
+            step=step,
+            config_dict=config_dict,
+        )
 
   def write_hparams(self, hparams: Mapping[str, Any]):
     with self._summary_writer.as_default():
