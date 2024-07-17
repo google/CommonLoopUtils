@@ -20,7 +20,8 @@ logging or writing to multiple formats.
 """
 
 import abc
-from typing import Any, Mapping, Optional, Union
+from collections.abc import Mapping
+from typing import Any, Optional, Union
 
 import jax.numpy as jnp
 import numpy as np
@@ -150,6 +151,28 @@ class MetricWriter(abc.ABC):
       num_buckets: Number of buckets used to create the histogram of the arrays.
         The default number of buckets depends on the particular implementation
         of the MetricWriter.
+    """
+
+  @abc.abstractmethod
+  def write_pointcloud(
+      self,
+      step: int,
+      point_clouds: Mapping[str, Array],
+      *,
+      point_colors: Optional[Mapping[str, Array]] = None,
+      configs: Optional[
+          Mapping[str, Union[str, int, float, bool, None]]
+      ] = None,
+  ):
+    """Writes point cloud summaries.
+
+    Args:
+      step: Step at which the point cloud was generated.
+      point_clouds: Mapping from point clouds key to point cloud of shape [N, 3]
+        array of point coordinates.
+      point_colors: Mapping from point colors key to [N, 3] array of point
+        colors.
+      configs: A dictionary of configuration options for the point cloud.
     """
 
   @abc.abstractmethod

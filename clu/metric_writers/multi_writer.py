@@ -14,7 +14,8 @@
 
 """MetricWriter that writes to multiple MetricWriters."""
 
-from typing import Any, Mapping, Optional, Sequence
+from collections.abc import Mapping, Sequence
+from typing import Any, Optional, Union
 
 from clu.metric_writers import interface
 
@@ -56,12 +57,26 @@ class MultiWriter(interface.MetricWriter):
     for w in self._writers:
       w.write_texts(step, texts)
 
-  def write_histograms(self,
-                       step: int,
-                       arrays: Mapping[str, Array],
-                       num_buckets: Optional[Mapping[str, int]] = None):
+  def write_histograms(
+      self,
+      step: int,
+      arrays: Mapping[str, Array],
+      num_buckets: Optional[Mapping[str, int]] = None):
     for w in self._writers:
       w.write_histograms(step, arrays, num_buckets)
+
+  def write_pointcloud(
+      self,
+      step: int,
+      point_clouds: Mapping[str, Array],
+      *,
+      point_colors: Optional[Mapping[str, Array]] = None,
+      configs: Optional[Mapping[str, Union[str, int, float, bool, None]]] = None
+  ):
+    for w in self._writers:
+      w.write_pointcloud(
+          step, point_clouds, point_colors=point_colors, configs=configs
+      )
 
   def write_hparams(self, hparams: Mapping[str, Any]):
     for w in self._writers:

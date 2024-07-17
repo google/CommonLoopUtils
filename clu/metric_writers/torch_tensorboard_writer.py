@@ -18,7 +18,8 @@ Use this writer for the Pytorch-based code.
 
 """
 
-from typing import Any, Mapping, Optional
+from collections.abc import Mapping
+from typing import Any, Optional, Union
 from absl import logging
 
 
@@ -77,6 +78,22 @@ class TorchTensorboardWriter(interface.MetricWriter):
       bins = None if num_buckets is None else num_buckets.get(tag)
       self._writer.add_histogram(
           tag, values, global_step=step, bins="auto", max_bins=bins)
+
+  def write_pointcloud(
+      self,
+      step: int,
+      point_clouds: Mapping[str, Array],
+      *,
+      point_colors: Optional[Mapping[str, Array]] = None,
+      configs: Optional[
+          Mapping[str, Union[str, int, float, bool, None]]
+      ] = None,
+  ):
+    logging.log_first_n(
+        logging.WARNING,
+        "TorchTensorBoardWriter does not support writing point clouds.",
+        1,
+    )
 
   def write_hparams(self, hparams: Mapping[str, Any]):
     self._writer.add_hparams(hparams, {})

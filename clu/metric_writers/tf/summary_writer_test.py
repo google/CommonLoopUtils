@@ -83,6 +83,21 @@ def _load_hparams(logdir: str):
   return hparams
 
 
+def _load_pointcloud_data(logdir: str):
+  """Loads pointcloud summaries from events in a logdir."""
+  paths = tf.io.gfile.glob(os.path.join(logdir, "events.out.tfevents.*"))
+  data = collections.defaultdict(dict)
+  for path in paths:
+    for event in tf.compat.v1.train.summary_iterator(path):
+      for value in event.summary.value:
+        if value.metadata.plugin_data.plugin_name == "mesh":
+          if "config" not in value.tag:
+            data[event.step][value.tag] = tf.make_ndarray(value.tensor)
+          else:
+            data[event.step][value.tag] = value.metadata.plugin_data.content
+  return data
+
+
 class SummaryWriterTest(tf.test.TestCase):
 
   def setUp(self):
@@ -141,6 +156,24 @@ class SummaryWriterTest(tf.test.TestCase):
         [(0.0, 0.35, 4), (0.35, 0.7, 1)],
     ]
     self.assertAllClose(data["b"], ([0, 2], expected_histograms_b))
+
+  def test_write_pointcloud(self):
+    point_clouds = np.random.normal(0, 1, (1, 1024, 3)).astype(np.float32)
+    point_colors = np.random.uniform(0, 1, (1, 1024, 3)).astype(np.float32)
+    config = {
+        "material": "PointCloudMaterial",
+        "size": 0.09,
+    }
+    self.writer.write_pointcloud(
+        step=0,
+        point_clouds={"pcd": point_clouds},
+        point_colors={"pcd": point_colors},
+        configs={"config": config},
+    )
+    self.writer.flush()
+    data = _load_pointcloud_data(self.logdir)
+    self.assertAllClose(data[0]["pcd_VERTEX"], point_clouds)
+    self.assertAllClose(data[0]["pcd_COLOR"], point_colors)
 
   def test_hparams(self):
     self.writer.write_hparams(dict(batch_size=512, num_epochs=90))
