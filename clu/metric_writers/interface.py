@@ -154,28 +154,6 @@ class MetricWriter(abc.ABC):
     """
 
   @abc.abstractmethod
-  def write_pointcloud(
-      self,
-      step: int,
-      point_clouds: Mapping[str, Array],
-      *,
-      point_colors: Optional[Mapping[str, Array]] = None,
-      configs: Optional[
-          Mapping[str, Union[str, int, float, bool, None]]
-      ] = None,
-  ):
-    """Writes point cloud summaries.
-
-    Args:
-      step: Step at which the point cloud was generated.
-      point_clouds: Mapping from point clouds key to point cloud of shape [N, 3]
-        array of point coordinates.
-      point_colors: Mapping from point colors key to [N, 3] array of point
-        colors.
-      configs: A dictionary of configuration options for the point cloud.
-    """
-
-  @abc.abstractmethod
   def write_hparams(self, hparams: Mapping[str, Any]):
     """Write hyper parameters.
 

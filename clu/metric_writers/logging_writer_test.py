@@ -80,42 +80,14 @@ class LoggingWriterTest(tf.test.TestCase):
         "INFO:absl:[4] Histogram for 'c' = {[-0.4, 0.6]: 5}",
     ])
 
-  def test_write_pointcloud(self):
-    point_clouds = np.random.normal(0, 1, (1, 1024, 3)).astype(np.float32)
-    point_colors = np.random.uniform(0, 1, (1, 1024, 3)).astype(np.float32)
-    config = {
-        "material": "PointCloudMaterial",
-        "size": 0.09,
-    }
-    with self.assertLogs(level="INFO") as logs:
-      self.writer.write_pointcloud(
-          step=4,
-          point_clouds={"pcd": point_clouds},
-          point_colors={"pcd": point_colors},
-          configs={"configs": config},
-      )
-    self.assertEqual(
-        logs.output,
-        [
-            "INFO:absl:[4] Got point clouds: {'pcd': (1, 1024, 3)},"
-            " point_colors: {'pcd': (1, 1024, 3)}, configs: {'configs':"
-            " {'material': 'PointCloudMaterial', 'size': 0.09}}."
-        ],
-    )
-
   def test_write_hparams(self):
     with self.assertLogs(level="INFO") as logs:
       self.writer.write_hparams({"learning_rate": 0.1, "batch_size": 128})
-    self.assertEqual(
-        logs.output,
-        [
-            "INFO:absl:[Hyperparameters] {'learning_rate': 0.1, 'batch_size':"
-            " 128}"
-        ],
-    )
+    self.assertEqual(logs.output, [
+        "INFO:absl:[Hyperparameters] {'learning_rate': 0.1, 'batch_size': 128}"
+    ])
 
   def test_collection(self):
-    writer = logging_writer.LoggingWriter(collection="train")
     writer = logging_writer.LoggingWriter(collection="train")
     with self.assertLogs(level="INFO") as logs:
       writer.write_scalars(0, {"a": 3, "b": 0.15})

@@ -19,7 +19,7 @@ TorchTensorboardWriter instead.
 """
 
 from collections.abc import Mapping
-from typing import Any, Optional, Union
+from typing import Any, Optional
 
 from absl import logging
 
@@ -31,7 +31,6 @@ import tensorflow as tf
 with epy.lazy_imports():
   # pylint: disable=g-import-not-at-top
   from tensorboard.plugins.hparams import api as hparams_api
-  from tensorboard.plugins.mesh import summary as mesh_summary  # pylint: disable=line-too-long
   # pylint: enable=g-import-not-at-top
 
 
@@ -97,28 +96,6 @@ class SummaryWriter(interface.MetricWriter):
       for key, value in arrays.items():
         buckets = None if num_buckets is None else num_buckets.get(key)
         tf.summary.histogram(key, value, step=step, buckets=buckets)
-
-  def write_pointcloud(
-      self,
-      step: int,
-      point_clouds: Mapping[str, Array],
-      *,
-      point_colors: Optional[Mapping[str, Array]] = None,
-      configs: Optional[
-          Mapping[str, Union[str, int, float, bool, None]]
-      ] = None,
-  ):
-    with self._summary_writer.as_default():
-      for key, vertices in point_clouds.items():
-        colors = None if point_colors is None else point_colors.get(key)
-        config = None if configs is None else configs.get(key)
-        mesh_summary.mesh(
-            key,
-            vertices=vertices,
-            colors=colors,
-            step=step,
-            config_dict=config,
-        )
 
   def write_hparams(self, hparams: Mapping[str, Any]):
     with self._summary_writer.as_default():

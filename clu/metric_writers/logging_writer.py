@@ -15,7 +15,7 @@
 """MetricWriter that writes all values to INFO log."""
 
 from collections.abc import Mapping
-from typing import Any, Optional, Union
+from typing import Any, Optional
 
 from absl import logging
 from clu.metric_writers import interface
@@ -76,29 +76,6 @@ class LoggingWriter(interface.MetricWriter):
         logging.info("[%d]%s Histogram for %r = {%s}", step,
                      self._collection_str, key,
                      _get_histogram_as_string(histo, bins))
-
-  def write_pointcloud(
-      self,
-      step: int,
-      point_clouds: Mapping[str, Array],
-      *,
-      point_colors: Optional[Mapping[str, Any]] = None,
-      configs: Optional[
-          Mapping[str, Union[str, int, float, bool, None]]
-      ] = None,
-  ):
-    logging.info(
-        "[%d]%s Got point clouds: %s, point_colors: %s, configs: %s.",
-        step,
-        self._collection_str,
-        {k: v.shape for k, v in point_clouds.items()},
-        (
-            {k: v.shape for k, v in point_colors.items()}
-            if point_colors is not None
-            else None
-        ),
-        configs,
-    )
 
   def write_hparams(self, hparams: Mapping[str, Any]):
     logging.info("[Hyperparameters]%s %s", self._collection_str, hparams)

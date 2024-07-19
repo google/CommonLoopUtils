@@ -23,14 +23,13 @@
 
 from collections.abc import Mapping, Sequence
 import contextlib
-from typing import Any, Optional, Union
+from typing import Any, Optional
 
 from clu import asynclib
 
 from clu.metric_writers import interface
 from clu.metric_writers import multi_writer
 import wrapt
-
 
 Array = interface.Array
 Scalar = interface.Scalar
@@ -97,44 +96,21 @@ class AsyncWriter(interface.MetricWriter):
 
   @_wrap_exceptions
   def write_audios(
-      self, step: int, audios: Mapping[str, Array], *, sample_rate: int
-  ):
+      self, step: int, audios: Mapping[str, Array], *, sample_rate: int):
     self._pool(self._writer.write_audios)(
-        step=step, audios=audios, sample_rate=sample_rate
-    )
+        step=step, audios=audios, sample_rate=sample_rate)
 
   @_wrap_exceptions
   def write_texts(self, step: int, texts: Mapping[str, str]):
     self._pool(self._writer.write_texts)(step=step, texts=texts)
 
   @_wrap_exceptions
-  def write_histograms(
-      self,
-      step: int,
-      arrays: Mapping[str, Array],
-      num_buckets: Optional[Mapping[str, int]] = None,
-  ):
+  def write_histograms(self,
+                       step: int,
+                       arrays: Mapping[str, Array],
+                       num_buckets: Optional[Mapping[str, int]] = None):
     self._pool(self._writer.write_histograms)(
-        step=step, arrays=arrays, num_buckets=num_buckets
-    )
-
-  @_wrap_exceptions
-  def write_pointcloud(
-      self,
-      step: int,
-      point_clouds: Mapping[str, Array],
-      *,
-      point_colors: Optional[Array] = None,
-      configs: Optional[
-          Mapping[str, Union[str, int, float, bool, None]]
-      ] = None,
-  ):
-    self._pool(self._writer.write_pointcloud)(
-        step=step,
-        point_clouds=point_clouds,
-        point_colors=point_colors,
-        configs=configs,
-    )
+        step=step, arrays=arrays, num_buckets=num_buckets)
 
   @_wrap_exceptions
   def write_hparams(self, hparams: Mapping[str, Any]):
