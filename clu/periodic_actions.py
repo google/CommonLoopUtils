@@ -308,6 +308,7 @@ class Profile(PeriodicAction):
       first_profile: int = 10,
       every_steps: Optional[int] = None,
       every_secs: Optional[float] = 3600.0,
+      on_steps: Optional[Iterable[int]] = None,
       artifact_name: str = "[{step}] Profile",
   ):
     """Initializes a new periodic profiler action.
@@ -322,12 +323,15 @@ class Profile(PeriodicAction):
       first_profile: First step at which a profile is started.
       every_steps: See `PeriodicAction.__init__()`.
       every_secs: See `PeriodicAction.__init__()`.
+      on_steps: See `PeriodicAction.__init__()`.
       artifact_name: Name of the artifact to record.
     """
     if not num_profile_steps and not profile_duration_ms:
       raise ValueError(
           "Must specify num_profile_steps and/or profile_duration_ms.")
-    super().__init__(every_steps=every_steps, every_secs=every_secs)
+    super().__init__(
+        every_steps=every_steps, every_secs=every_secs, on_steps=on_steps
+    )
     self._num_profile_steps = num_profile_steps
     self._first_profile = first_profile
     self._profile_duration_ms = profile_duration_ms
@@ -383,7 +387,8 @@ class ProfileAllHosts(PeriodicAction):
                profile_duration_ms: int = 3_000,
                first_profile: int = 10,
                every_steps: Optional[int] = None,
-               every_secs: Optional[float] = 3600.0):
+               every_secs: Optional[float] = 3600.0,
+               on_steps: Optional[Iterable[int]] = None):
     """Initializes a new periodic profiler action.
 
     Args:
@@ -394,8 +399,11 @@ class ProfileAllHosts(PeriodicAction):
       first_profile: First step at which a profile is started.
       every_steps: See `PeriodicAction.__init__()`.
       every_secs: See `PeriodicAction.__init__()`.
+      on_steps: See `PeriodicAction.__init__()`.
     """
-    super().__init__(every_steps=every_steps, every_secs=every_secs)
+    super().__init__(
+        every_steps=every_steps, every_secs=every_secs, on_steps=on_steps
+    )
     self._hosts = hosts
     self._first_profile = first_profile
     self._profile_duration_ms = profile_duration_ms
