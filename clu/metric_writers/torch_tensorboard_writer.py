@@ -22,7 +22,6 @@ from collections.abc import Mapping
 from typing import Any, Optional
 from absl import logging
 
-
 from clu.metric_writers import interface
 from torch.utils import tensorboard
 
@@ -78,6 +77,20 @@ class TorchTensorboardWriter(interface.MetricWriter):
       bins = None if num_buckets is None else num_buckets.get(tag)
       self._writer.add_histogram(
           tag, values, global_step=step, bins="auto", max_bins=bins)
+
+  def write_pointcloud(
+      self,
+      step: int,
+      point_clouds: Mapping[str, Array],
+      *,
+      point_colors: Mapping[str, Array] | None = None,
+      configs: Mapping[str, str | float | bool | None] | None = None,
+  ):
+    logging.log_first_n(
+        logging.WARNING,
+        "TorchTensorBoardWriter does not support writing point clouds.",
+        1,
+    )
 
   def write_hparams(self, hparams: Mapping[str, Any]):
     self._writer.add_hparams(hparams, {})

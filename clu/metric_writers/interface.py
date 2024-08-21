@@ -153,6 +153,26 @@ class MetricWriter(abc.ABC):
         of the MetricWriter.
     """
 
+  def write_pointcloud(
+      self,
+      step: int,
+      point_clouds: Mapping[str, Array],
+      *,
+      point_colors: Mapping[str, Array] | None = None,
+      configs: Mapping[str, str | float | bool | None] | None = None,
+  ):
+    """Writes point cloud summaries.
+
+    Args:
+      step: Step at which the point cloud was generated.
+      point_clouds: Mapping from point clouds key to point cloud of shape [N, 3]
+        array of point coordinates.
+      point_colors: Mapping from point colors key to [N, 3] array of point
+        colors.
+      configs: A dictionary of configuration options for the point cloud.
+    """
+    raise NotImplementedError()
+
   @abc.abstractmethod
   def write_hparams(self, hparams: Mapping[str, Any]):
     """Write hyper parameters.

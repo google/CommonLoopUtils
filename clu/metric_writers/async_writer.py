@@ -113,6 +113,22 @@ class AsyncWriter(interface.MetricWriter):
         step=step, arrays=arrays, num_buckets=num_buckets)
 
   @_wrap_exceptions
+  def write_pointcloud(
+      self,
+      step: int,
+      point_clouds: Mapping[str, Array],
+      *,
+      point_colors: Mapping[str, Array] | None = None,
+      configs: Mapping[str, str | float | bool | None] | None = None,
+  ):
+    self._pool(self._writer.write_pointcloud)(
+        step=step,
+        point_clouds=point_clouds,
+        point_colors=point_colors,
+        configs=configs,
+    )
+
+  @_wrap_exceptions
   def write_hparams(self, hparams: Mapping[str, Any]):
     self._pool(self._writer.write_hparams)(hparams=hparams)
 
