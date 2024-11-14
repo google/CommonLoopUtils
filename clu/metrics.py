@@ -864,7 +864,7 @@ class Std(Metric):
     variance = self.sum_of_squares / self.count - mean**2
     # Mathematically variance can never be negative but in reality we may run
     # into such issues due to numeric reasons.
-    variance = jnp.clip(variance, a_min=0.0)
+    variance = jnp.clip(variance, min=0.0)
     return variance**.5
 
 
