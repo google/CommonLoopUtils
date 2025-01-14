@@ -165,8 +165,8 @@ def _get_parameter_rows(
         f"Expected `params` to be a dictionary but got {type(params)}"
     )
 
+  params = flatten_dict(params)
   if params:
-    params = flatten_dict(params)
     names, values = map(list, tuple(zip(*sorted(params.items()))))
   else:
     names, values = [], []

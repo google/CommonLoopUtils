@@ -92,6 +92,8 @@ class JaxParameterOverviewTest(absltest.TestCase):
   def test_get_parameter_overview_empty(self):
     self.assertEqual(EMPTY_PARAMETER_OVERVIEW,
                      parameter_overview.get_parameter_overview({}))
+    self.assertEqual(EMPTY_PARAMETER_OVERVIEW,
+                     parameter_overview.get_parameter_overview({"a": {}}))
 
   def test_get_parameter_overview(self):
     rng = jax.random.PRNGKey(42)
