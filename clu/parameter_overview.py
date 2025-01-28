@@ -98,6 +98,13 @@ def count_parameters(params: _ParamsContainer) -> int:
 
 
 def _make_row(name, value) -> _ParamRow:
+  if value is None:
+    return _ParamRow(
+        name=name,
+        shape=(),
+        dtype="",
+        size=0,
+    )
   return _ParamRow(
       name=name,
       shape=value.shape,
