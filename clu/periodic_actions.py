@@ -192,6 +192,11 @@ class ReportProgress(PeriodicAction):
     # Using max_worker=1 guarantees that the calls to _wait_jax_async_dispatch()
     # happen sequentially.
     self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+    self._persistent_notes = ""
+
+  def set_persistent_notes(self, message: str):
+    """Sets the persistent notes for this work unit (not overwritten by the periodic action)."""
+    self._persistent_notes = message
 
   def _should_trigger(self, step: int, t: float) -> bool:
     # Note: step == self._previous_step is only True on the first step.
@@ -211,6 +216,8 @@ class ReportProgress(PeriodicAction):
           f"{100 * dt / total:.1f}% {name}"
           for name, dt in sorted(self._time_per_part.items())))
     # This should be relatively cheap so we can do it in the same main thread.
+    if self._persistent_notes:
+      message = f"{self._persistent_notes}\n{message}"
     platform.work_unit().set_notes(message)
     if self._writer is not None:
       self._writer.write_scalars(step, {"steps_per_sec": steps_per_sec})
