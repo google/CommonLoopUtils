@@ -1,4 +1,4 @@
-# Copyright 2024 The CLU Authors.
+# Copyright 2025 The CLU Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -198,7 +198,7 @@ class Metric:
     # According to b/160868467#comment4, usage of `jax.lax.scan` does not add a
     # significant computational cost for simple metrics where e.g. `jnp.sum`
     # could be used instead.
-    return jax.lax.scan(reduce_step, first, remainder)[0]
+    return jax.lax.scan(reduce_step, first, remainder)[0]  # pytype: disable=wrong-arg-types  # lax-types
 
   @classmethod
   def from_fun(cls, fun: FromFunCallable):  # No way to annotate return type
