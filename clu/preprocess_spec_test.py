@@ -149,7 +149,8 @@ class PreprocessSpecTest(parameterized.TestCase, tf.test.TestCase):
     fn1 = preprocess_spec.PreprocessFn(ops=(op1, op2), only_jax_types=False)
     fn2 = preprocess_spec.PreprocessFn(ops=(op3,), only_jax_types=True)
     fn12 = fn1 + fn2
-    self.assertEqual(fn12.ops, fn1.ops + fn2.ops)
+    # Note: `+` is not supported on Sequence[PreprocessOp]; need to use `list`.
+    self.assertSequenceEqual(fn12.ops, list(fn1.ops) + list(fn2.ops))
     self.assertTrue(fn12.only_jax_types)
 
   def test_slice_preprocess_fn(self):
