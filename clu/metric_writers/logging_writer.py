@@ -138,7 +138,7 @@ def _compute_histogram_as_tf(
 
   range_max = np.max(array)
   range_min = np.min(array)
-  if range_max == range_min:
+  if np.isclose(range_max, range_min, rtol=1e-5, atol=1e-8):
     histo = np.asarray([array.size], dtype=np.int64)
     bins = np.asarray([range_max - 0.5, range_max + 0.5], dtype=np.float64)
   else:
