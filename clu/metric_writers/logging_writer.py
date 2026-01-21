@@ -42,11 +42,12 @@ class LoggingWriter(interface.MetricWriter):
                  {k: v.shape for k, v in values.items()})
 
   def write_scalars(self, step: int, scalars: Mapping[str, Scalar]):
-    values = [
+    # Re-enable logging of scalars if the SyncWait problem is resolved.
+    _ = [
         f"{k}={v:.6g}" if isinstance(v, float) else f"{k}={v}"
         for k, v in sorted(scalars.items())
     ]
-    logging.info("[%d]%s %s", step, self._collection_str, ", ".join(values))
+    # logging.info("[%d]%s %s", step, self._collection_str, ", ".join(values))
 
   def write_images(self, step: int, images: Mapping[str, Array]):
     logging.info("[%d]%s Got images: %s.", step, self._collection_str,
