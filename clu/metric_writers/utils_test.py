@@ -25,10 +25,10 @@ from clu import values
 from clu.metric_writers import utils
 from clu.metric_writers.async_writer import AsyncMultiWriter
 from clu.metric_writers.async_writer import AsyncWriter
+from clu.metric_writers.summary_writer import SummaryWriter
 from clu.metric_writers.interface import MetricWriter
 from clu.metric_writers.logging_writer import LoggingWriter
 from clu.metric_writers.multi_writer import MultiWriter
-from clu.metric_writers.summary_writer import SummaryWriter
 import clu.metrics
 import flax.struct
 import jax.numpy as jnp
