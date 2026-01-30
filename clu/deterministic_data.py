@@ -1,4 +1,4 @@
-# Copyright 2025 The CLU Authors.
+# Copyright 2026 The CLU Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -210,7 +210,7 @@ def get_read_instruction_for_host(
       split.
     host_id: Optional, host index in [0, host_count). Defaults to
       `jax.process_index()`.
-    host_count: Optional, number of hosts. Defaults to `jax.host_count`.
+    host_count: Optional, number of hosts. Defaults to `jax.process_count`.
     drop_remainder: Deprecated - use remainder_options instead.
     remainder_options: The options to handle the remaining examples.
   """
