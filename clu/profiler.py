@@ -31,8 +31,9 @@ def start(logdir: str, options=None):
   if options is not None:
     raise NotImplementedError(
         "'options' not supported by clu.profiler.start(). Please file an issue "
-        "at https://github.com/google/jax/issues requesting profiler option "
-        "support if you need this feature.")
+        "at https://github.com/jax-ml/jax/issues requesting profiler option "
+        "support if you need this feature."
+    )
   if logdir is None:
     raise ValueError("Must specify logdir where profile should be written!")
   jax.profiler.start_trace(logdir)
