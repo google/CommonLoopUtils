@@ -91,17 +91,17 @@ class PeriodicAction(abc.ABC):
     self._every_secs = every_secs
     self._on_steps = set(on_steps or [])
     # Step and timestamp for the last time the action triggered.
-    self._previous_step: int = None
-    self._previous_time: float = None
+    self._previous_step: int = None  # pyrefly: ignore[bad-assignment]
+    self._previous_time: float = None  # pyrefly: ignore[bad-assignment]
     # Just for checking that __call__() was called every step.
-    self._last_step: int = None
+    self._last_step: int = None  # pyrefly: ignore[bad-assignment]
 
   def _init_and_check(self, step: int, t: float):
     """Initializes and checks it was called at every step."""
     if self._previous_step is None:
-      self._previous_step = step
-      self._previous_time = t
-      self._last_step = step
+      self._previous_step = step  # pyrefly: ignore[bad-assignment]
+      self._previous_time = t  # pyrefly: ignore[bad-assignment]
+      self._last_step = step  # pyrefly: ignore[bad-assignment]
     elif self._every_steps is not None and step - self._last_step != 1:
       raise ValueError(f"PeriodicAction must be called after every step once "
                        f"(every_steps={self._every_steps}, "
@@ -350,7 +350,7 @@ class Profile(PeriodicAction):
   def _should_trigger(self, step: int, t: float) -> bool:
     if self._session_running:
       # If a session is running we only check if we should stop it.
-      dt = t - self._session_started
+      dt = t - self._session_started  # pyrefly: ignore[unsupported-operation]
       cond = (not self._profile_duration_ms or
               dt * 1e3 >= self._profile_duration_ms)
       cond &= (not self._num_profile_steps or

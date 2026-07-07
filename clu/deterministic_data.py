@@ -429,7 +429,7 @@ def create_dataset(dataset_builder: DatasetBuilder,
     if isinstance(rng, tf.Tensor):
       rngs = [x.numpy() for x in tf.random.experimental.stateless_split(rng, 3)]
     else:
-      rngs = list(jax.random.key_data(jax.random.split(rng, 3)))
+      rngs = list(jax.random.key_data(jax.random.split(rng, 3)))  # pyrefly: ignore[bad-argument-type]
   else:
     rngs = 3 * [[None, None]]
 
@@ -458,7 +458,7 @@ def create_dataset(dataset_builder: DatasetBuilder,
 
   if preprocess_fn is not None:
     if rng_available:
-      ds = _preprocess_with_per_example_rng(ds, preprocess_fn, rng=rngs.pop())
+      ds = _preprocess_with_per_example_rng(ds, preprocess_fn, rng=rngs.pop())  # pyrefly: ignore[bad-argument-type]
     else:
       ds = ds.map(preprocess_fn, num_parallel_calls=AUTOTUNE)
 

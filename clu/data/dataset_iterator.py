@@ -162,14 +162,14 @@ class TfDatasetIterator(DatasetIterator):
                          "depend on //third_party/py/tensorflow.") from e
     self._tf = tf
 
-    if not isinstance(dataset, tf.data.Dataset):
+    if not isinstance(dataset, tf.data.Dataset):  # pyrefly: ignore[missing-attribute]
       raise ValueError("`dataset` must be an instance of `tf.data.Dataset` "
                        f"but got {type(dataset)}.")
     self._dataset = dataset
     self._checkpoint = checkpoint
     assert self.element_spec  # Verify element spec.
     self.iterator = iter(dataset)
-    self._ckpt = tf.train.Checkpoint(ds=self.iterator)
+    self._ckpt = tf.train.Checkpoint(ds=self.iterator)  # pyrefly: ignore[missing-attribute]
 
   def get_next(self) -> Element:
     return next(self)
@@ -179,7 +179,7 @@ class TfDatasetIterator(DatasetIterator):
 
   def reset(self):
     self.iterator = iter(self._dataset)
-    self._ckpt = self._tf.train.Checkpoint(ds=self.iterator)
+    self._ckpt = self._tf.train.Checkpoint(ds=self.iterator)  # pyrefly: ignore[missing-attribute]
 
   @property
   def element_spec(self) -> ElementSpec:
@@ -189,7 +189,7 @@ class TfDatasetIterator(DatasetIterator):
                        f"{element_spec}.")
     invalid_features = [
         k for k, v in element_spec.items()
-        if not isinstance(v, self._tf.TensorSpec)
+        if not isinstance(v, self._tf.TensorSpec)  # pyrefly: ignore[missing-attribute]
     ]
     if invalid_features:
       raise ValueError(f"Features {invalid_features} are not tensors. Dataset "

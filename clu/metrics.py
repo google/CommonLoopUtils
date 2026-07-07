@@ -278,7 +278,7 @@ class Metric:
     """
 
     @flax.struct.dataclass
-    class FromFun(cls):
+    class FromFun(cls):  # pyrefly: ignore[invalid-inheritance]
       """Wrapper Metric class that collects output after applying `fun`."""
 
       @classmethod
@@ -336,7 +336,7 @@ class Metric:
     """
 
     @flax.struct.dataclass
-    class FromOutput(cls):
+    class FromOutput(cls):  # pyrefly: ignore[invalid-inheritance]
       """Wrapper Metric class that collects output named `name`."""
 
       @classmethod
@@ -445,7 +445,7 @@ class CollectingMetric(Metric):
     """Returns a metric class that collects all model outputs named `names`."""
 
     @flax.struct.dataclass
-    class FromOutputs(cls):  # pylint:disable=missing-class-docstring
+    class FromOutputs(cls):  # pylint:disable=missing-class-docstring  # pyrefly: ignore[invalid-inheritance]
 
       @classmethod
       def from_model_output(cls: type[M], **model_output) -> M:
@@ -456,7 +456,7 @@ class CollectingMetric(Metric):
           # Can't jnp.concatenate() scalars, promote to shape=(1,) in that case.
           return value[None] if value.ndim == 0 else value
 
-        return cls({name: (make_array(model_output[name]),) for name in names})
+        return cls({name: (make_array(model_output[name]),) for name in names})  # pyrefly: ignore[bad-argument-count]
 
     return FromOutputs
 
@@ -531,7 +531,7 @@ class Collection:
     Returns:
       A subclass of Collection with fields defined by provided `metrics`.
     """
-    return flax.struct.dataclass(
+    return flax.struct.dataclass(  # pyrefly: ignore[bad-return]
         type("_InlineCollection", (Collection,), {"__annotations__": metrics}))
 
   @classmethod
@@ -706,9 +706,9 @@ class LastValue(Metric):
 
   def __init__(  # pytype: disable=missing-parameter  # jnp-array
       self,
-      total: jnp.ndarray | _default = _default,
-      count: jnp.ndarray | _default = _default,
-      value: jnp.ndarray | _default = _default,
+      total: jnp.ndarray | _default = _default,  # pyrefly: ignore[not-a-type]
+      count: jnp.ndarray | _default = _default,  # pyrefly: ignore[not-a-type]
+      value: jnp.ndarray | _default = _default,  # pyrefly: ignore[not-a-type]
   ):
     """Backward compatibility constructor.
 
@@ -913,7 +913,7 @@ class Accuracy(Average):
   """
 
   @classmethod
-  def from_model_output(
+  def from_model_output(  # pyrefly: ignore[bad-override]
       cls, *, logits: jnp.ndarray, labels: jnp.ndarray, **kwargs
   ) -> Accuracy:
     if logits.ndim != labels.ndim + 1 or labels.dtype != jnp.int32:

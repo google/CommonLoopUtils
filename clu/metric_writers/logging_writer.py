@@ -75,7 +75,7 @@ class LoggingWriter(interface.MetricWriter):
       if histo is not None:
         logging.info("[%d]%s Histogram for %r = {%s}", step,
                      self._collection_str, key,
-                     _get_histogram_as_string(histo, bins))
+                     _get_histogram_as_string(histo, bins))  # pyrefly: ignore[bad-argument-type]
 
   def write_pointcloud(
       self,

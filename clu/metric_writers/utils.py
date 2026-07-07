@@ -148,7 +148,7 @@ def create_default_writer(
     logdir = epath.Path(logdir)
     if collection is not None:
       logdir /= collection
-    writers.append(SummaryWriter(os.fspath(logdir)))
+    writers.append(SummaryWriter(os.fspath(logdir)))  # pyrefly: ignore[bad-argument-type]
   if asynchronous:
     return AsyncMultiWriter(writers)
   return MultiWriter(writers)

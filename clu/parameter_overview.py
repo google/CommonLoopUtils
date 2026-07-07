@@ -72,7 +72,7 @@ def flatten_dict(
     nested_key = f"{prefix}{delimiter}{key}" if prefix else key
     if isinstance(value, (dict, flax.core.FrozenDict)):
       output_dict.update(
-          flatten_dict(value, prefix=nested_key, delimiter=delimiter)
+          flatten_dict(value, prefix=nested_key, delimiter=delimiter)  # pyrefly: ignore[bad-argument-type]
       )
     else:
       output_dict[nested_key] = value
@@ -81,13 +81,13 @@ def flatten_dict(
 
 def _count_parameters(params: _ParamsContainer) -> int:
   """Returns the count of variables for the module or parameter dictionary."""
-  params = flatten_dict(params)
+  params = flatten_dict(params)  # pyrefly: ignore[bad-argument-type]
   return sum(np.prod(v.shape) for v in params.values() if v is not None)
 
 
 def _parameters_size(params: _ParamsContainer) -> int:
   """Returns total size (bytes) for the module or parameter dictionary."""
-  params = flatten_dict(params)
+  params = flatten_dict(params)  # pyrefly: ignore[bad-argument-type]
   return sum(
       np.prod(v.shape) * v.dtype.itemsize
       for v in params.values()
@@ -177,7 +177,7 @@ def _get_parameter_rows(
         f"Expected `params` to be a dictionary but got {type(params)}"
     )
 
-  params = flatten_dict(params)
+  params = flatten_dict(params)  # pyrefly: ignore[bad-argument-type]
   if params:
     names, values = map(list, tuple(zip(*sorted(params.items()))))
   else:

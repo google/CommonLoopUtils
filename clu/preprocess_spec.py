@@ -124,7 +124,7 @@ class MapTransform(abc.ABC):
                     "switch to grain.tensorflow.MapTransform.")
     if isinstance(features, tf.data.Dataset):
       return features.map(self._transform, num_parallel_calls=tf.data.AUTOTUNE)
-    return self._transform(features)
+    return self._transform(features)  # pyrefly: ignore[bad-return]
 
   @abc.abstractmethod
   def _transform(self, features: FlatFeatures) -> FlatFeatures:
@@ -154,7 +154,7 @@ class RandomMapTransform(MapTransform, abc.ABC):
 
     next_seed, seed = tf.unstack(
         tf.random.experimental.stateless_split(features.pop(SEED_KEY)))
-    features = self._transform(features, seed)
+    features = self._transform(features, seed)  # pyrefly: ignore[bad-assignment]
     features[SEED_KEY] = next_seed
     return features
 
@@ -341,10 +341,10 @@ def _parse_single_preprocess_op(
   args = [ast.literal_eval(arg) for arg in expr.args]
   kwargs = {kv.arg: ast.literal_eval(kv.value) for kv in expr.keywords}
   if not args:
-    return op_class(**kwargs)
+    return op_class(**kwargs)  # pyrefly: ignore[bad-unpacking]
 
   # Translate positional arguments into keyword arguments.
-  available_arg_names = [f.name for f in dataclasses.fields(op_class)]
+  available_arg_names = [f.name for f in dataclasses.fields(op_class)]  # pyrefly: ignore[bad-argument-type]
   for i, arg in enumerate(args):
     name = available_arg_names[i]
     if name in kwargs:
@@ -353,7 +353,7 @@ def _parse_single_preprocess_op(
           f"(value: {arg}) and keyword argument (value: {kwargs[name]}).")
     kwargs[name] = arg
 
-  return op_class(**kwargs)
+  return op_class(**kwargs)  # pyrefly: ignore[bad-unpacking]
 
 
 def parse(spec: str,
@@ -361,12 +361,12 @@ def parse(spec: str,
           *,
           only_jax_types: bool = True) -> PreprocessFn:
   """Parses a preprocess spec; a '|' separated list of preprocess ops."""
-  available_ops = dict(available_ops)
+  available_ops = dict(available_ops)  # pyrefly: ignore[bad-assignment]
   if not spec.strip():
     ops = []
   else:
     ops = [
-        _parse_single_preprocess_op(s, available_ops) for s in spec.split("|")
+        _parse_single_preprocess_op(s, available_ops) for s in spec.split("|")  # pyrefly: ignore[bad-argument-type]
     ]
   return PreprocessFn(ops, only_jax_types=only_jax_types)
 

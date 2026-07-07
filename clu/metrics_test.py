@@ -30,7 +30,7 @@ import numpy as np
 
 @flax.struct.dataclass
 class CollectingMetricAccuracy(
-    metrics.CollectingMetric.from_outputs(("logits", "labels"))):
+    metrics.CollectingMetric.from_outputs(("logits", "labels"))):  # pyrefly: ignore[invalid-inheritance]
 
   def compute(self):
     values = super().compute()
@@ -44,7 +44,7 @@ class CollectingMetricAccuracy(
 @flax.struct.dataclass
 class Collection(metrics.Collection):
   train_accuracy: metrics.Accuracy
-  learning_rate: metrics.LastValue.from_output("learning_rate")
+  learning_rate: metrics.LastValue.from_output("learning_rate")  # pyrefly: ignore[invalid-annotation]
 
 
 @flax.struct.dataclass
@@ -217,12 +217,12 @@ class MetricsTest(parameterized.TestCase):
 
     chex.assert_trees_all_close(
         self.make_compute_metric(
-            metrics.Average.from_fun(accuracy),
+            metrics.Average.from_fun(accuracy),  # pyrefly: ignore[bad-argument-type]
             reduce=False)(self.model_outputs), self.results["train_accuracy"])
 
     chex.assert_trees_all_close(
         self.make_compute_metric(
-            metrics.Average.from_fun(accuracy),
+            metrics.Average.from_fun(accuracy),  # pyrefly: ignore[bad-argument-type]
             reduce=False)(self.model_outputs_masked),
         self.results_masked["train_accuracy"])
 
@@ -237,12 +237,12 @@ class MetricsTest(parameterized.TestCase):
 
     chex.assert_trees_all_close(
         self.make_compute_metric(
-            metrics.Accuracy.from_fun(make_accuracy_args_map),
+            metrics.Accuracy.from_fun(make_accuracy_args_map),  # pyrefly: ignore[bad-argument-type]
             reduce=False)(self.model_outputs), self.results["train_accuracy"])
 
     chex.assert_trees_all_close(
         self.make_compute_metric(
-            metrics.Accuracy.from_fun(make_accuracy_args_map),
+            metrics.Accuracy.from_fun(make_accuracy_args_map),  # pyrefly: ignore[bad-argument-type]
             reduce=False)(self.model_outputs_masked),
         self.results_masked["train_accuracy"])
 
@@ -356,8 +356,8 @@ class MetricsTest(parameterized.TestCase):
       return dict(logits=logits, labels=labels, mask=head2_mask & mask)
 
     collection = metrics.Collection.create(
-        head1_accuracy=metrics.Accuracy.from_fun(with_head1),
-        head2_accuracy=metrics.Accuracy.from_fun(with_head2)
+        head1_accuracy=metrics.Accuracy.from_fun(with_head1),  # pyrefly: ignore[bad-argument-type]
+        head2_accuracy=metrics.Accuracy.from_fun(with_head2)  # pyrefly: ignore[bad-argument-type]
     )
 
     chex.assert_trees_all_close(

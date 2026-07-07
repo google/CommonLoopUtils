@@ -324,7 +324,7 @@ class Checkpoint:
     assert self.current_checkpoint == next_checkpoint, (
         "Expected next_checkpoint to match .current_checkpoint: "
         f"{next_checkpoint} != {self.current_checkpoint}")
-    return self.current_checkpoint
+    return self.current_checkpoint  # pyrefly: ignore[bad-return]
 
   @utils.logged_with("Checkpoint.restore_or_initialize()")
   def restore_or_initialize(self, state: T) -> T:
@@ -531,7 +531,7 @@ class MultihostCheckpoint(Checkpoint):
     logging.info(
         "Checked checkpoint base_directories: %s - common_numbers=%s "
         "- exclusive_numbers=%s", base_directories, common_numbers,
-        all_numbers.difference(common_numbers))
+        all_numbers.difference(common_numbers))  # pyrefly: ignore[bad-argument-type]
     if not common_numbers:
       return None
     highest_number = sorted(common_numbers)[-1]

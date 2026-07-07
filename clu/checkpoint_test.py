@@ -27,7 +27,7 @@ def _make_dataset():
   inputs = tf.range(10.)[:, None]
   labels = inputs * 5. + tf.range(5.)[None, :]
   features = dict(x=inputs, y=labels)
-  return tf.data.Dataset.from_tensor_slices(features).repeat().batch(2)
+  return tf.data.Dataset.from_tensor_slices(features).repeat().batch(2)  # pyrefly: ignore[bad-argument-type]
 
 
 @flax.struct.dataclass
@@ -222,7 +222,7 @@ class CheckpointTest(tf.test.TestCase):
     self.assertEqual(state.step, 1)
     state = TrainState(step=2)
     # Failed save : step=2 is stored, but TensorFlow checkpoint fails.
-    ckpt.tf_checkpoint_manager.save = None
+    ckpt.tf_checkpoint_manager.save = None  # pyrefly: ignore[bad-assignment]
     with self.assertRaisesRegex(TypeError,
                                 r"'NoneType' object is not callable"):
       ckpt.save(state)
@@ -283,7 +283,7 @@ class CheckpointTest(tf.test.TestCase):
     self.assertEqual(state.step, 1)
     self.assertEqual(tf_step.numpy(), 1)
     checkpoint_info = checkpoint.CheckpointInfo.from_path(
-        ckpt.current_checkpoint)
+        ckpt.current_checkpoint)  # pyrefly: ignore[bad-argument-type]
     # Stores steps 2, 3, 4, 5
     for _ in range(4):
       tf_step.assign_add(1)
@@ -360,7 +360,7 @@ class MultihostCheckpoint(tf.test.TestCase):
   def test_preemption(self):
     multihost_base_dir = os.path.join(tempfile.mkdtemp(), "test")
     state = TrainState(step=1)
-    state0 = state.replace(step=0)
+    state0 = state.replace(step=0)  # pyrefly: ignore[missing-attribute]
     ckpt_0 = checkpoint.MultihostCheckpoint(multihost_base_dir, host_id=0)
     ckpt_1 = checkpoint.MultihostCheckpoint(multihost_base_dir, host_id=1)
     # Initialize both at step=1.
