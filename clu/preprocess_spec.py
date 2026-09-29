@@ -228,7 +228,7 @@ class OnlyJaxTypes:
   def __call__(self, features: Features) -> Features:
     features = traverse_util.flatten_dict(features)
     for name in list(features):
-      dtype = features[name].dtype
+      dtype = features[name].dtype  # pyrefly: ignore[missing-attribute]
       if dtype not in self.types:
         del features[name]
         logging.warning(
