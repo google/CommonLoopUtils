@@ -440,7 +440,8 @@ def create_dataset(dataset_builder: DatasetBuilder,
   dataset_options.threading.max_intra_op_parallelism = 1
 
   read_config = tfds.ReadConfig(
-      shuffle_seed=rngs.pop()[0], options=dataset_options)
+      shuffle_seed=rngs.pop()[0], options=dataset_options  # pyrefly: ignore[bad-argument-type]
+  )
   ds = dataset_builder.as_dataset(
       split=split,
       shuffle_files=shuffle,
