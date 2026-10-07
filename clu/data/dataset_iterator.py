@@ -74,7 +74,7 @@ Element = PyTree[Array]
 ElementSpec = PyTree[ArraySpec]
 
 
-class DatasetIterator(collections.abc.Iterator):  # pytype: disable=ignored-abstractmethod
+class DatasetIterator(collections.abc.Iterator):
   """Generic interface for iterating over a dataset.
 
   This does not support __getitem__ since it cannot be implemented efficiently

@@ -76,7 +76,7 @@ SCHEME_RE = re.compile("^(?P<scheme>[a-z][a-z0-9.+-]+://)?(?P<path>.*)", re.I)
 
 def safe_normpath(path: str) -> str:
   """Normalizes path safely to get around `gfile.glob()` limitations."""
-  d = SCHEME_RE.match(path).groupdict()  # pytype: disable=attribute-error  # re-none
+  d = SCHEME_RE.match(path).groupdict()  # pyrefly: ignore[missing-attribute]
   return (d["scheme"] or "") + os.path.normpath(d["path"])
 
 
@@ -128,7 +128,7 @@ class CheckpointInfo(
     m = re.match(cls.CHECKPOINT_REGEX, checkpoint)
     if m is None:
       RuntimeError(f"Invalid checkpoint format: {checkpoint}")
-    d = m.groupdict()  # pytype: disable=attribute-error
+    d = m.groupdict()  # pyrefly: ignore[missing-attribute]
     return cls(d["prefix"], int(d["number"]))
 
   def increment(self) -> "CheckpointInfo":

@@ -120,7 +120,8 @@ def _shard_read_instruction(
   start = absolute_instruction.from_ or 0
   if _use_split_info:
     end = absolute_instruction.to or (
-        split_infos[absolute_instruction.splitname].num_examples)  # pytype: disable=attribute-error
+        split_infos[absolute_instruction.splitname].num_examples  # pyrefly: ignore[missing-attribute]
+    )
   else:
     end = absolute_instruction.to or split_infos[absolute_instruction.splitname]
   assert end >= start, f"start={start}, end={end}"

@@ -229,7 +229,7 @@ class Metric:
     # According to b/160868467#comment4, usage of `jax.lax.scan` does not add a
     # significant computational cost for simple metrics where e.g. `jnp.sum`
     # could be used instead.
-    return jax.lax.scan(reduce_step, first, remainder)[0]  # pytype: disable=wrong-arg-types  # lax-types
+    return jax.lax.scan(reduce_step, first, remainder)[0]
 
   @classmethod
   def from_fun(cls, fun: FromFunCallable):  # No way to annotate return type
@@ -435,7 +435,8 @@ class CollectingMetric(Metric):
     # Note that this is usually called from inside a `pmap()` via
     # `Collection.gather_from_model_output()` so we concatenate using jnp.
     return type(self)(
-        {name: jnp.concatenate(values) for name, values in self.values.items()})  # pytype: disable=wrong-arg-types  # jnp-types
+        {name: jnp.concatenate(values) for name, values in self.values.items()}  # pyrefly: ignore[bad-argument-type]
+    )
 
   def compute(self):  # No return type annotation, so subclasses can override
     return {k: np.concatenate(v) for k, v in self.values.items()}
@@ -531,8 +532,9 @@ class Collection:
     Returns:
       A subclass of Collection with fields defined by provided `metrics`.
     """
-    return flax.struct.dataclass(  # pyrefly: ignore[bad-return]
-        type("_InlineCollection", (Collection,), {"__annotations__": metrics}))
+    return flax.struct.dataclass(
+        type("_InlineCollection", (Collection,), {"__annotations__": metrics})
+    )
 
   @classmethod
   def create_collection(cls, **metrics: Metric) -> Collection:
@@ -704,7 +706,7 @@ class LastValue(Metric):
   total: jnp.ndarray
   count: jnp.ndarray
 
-  def __init__(  # pytype: disable=missing-parameter  # jnp-array
+  def __init__(
       self,
       total: jnp.ndarray | _default = _default,  # pyrefly: ignore[not-a-type]
       count: jnp.ndarray | _default = _default,  # pyrefly: ignore[not-a-type]

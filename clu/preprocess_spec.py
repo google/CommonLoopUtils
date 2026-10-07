@@ -159,7 +159,7 @@ class RandomMapTransform(MapTransform, abc.ABC):
     return features
 
   @abc.abstractmethod
-  def _transform(self, features: FlatFeatures, seed: tf.Tensor) -> FlatFeatures:  # pytype: disable=signature-mismatch  # overriding-parameter-count-checks
+  def _transform(self, features: FlatFeatures, seed: tf.Tensor) -> FlatFeatures:  # pyrefly: ignore[bad-override]
     """Transforms the features only using stateless random ops."""
 
 
@@ -245,7 +245,7 @@ class OnlyJaxTypes:
             "Removing feature %r because ragged tensors are not support in "
             "JAX.", name)
     features = traverse_util.unflatten_dict(features)
-    return features  # pytype: disable=bad-return-type
+    return features
 
 
 @dataclasses.dataclass
@@ -328,10 +328,10 @@ def _parse_single_preprocess_op(
     The ProcessOp corresponding to the spec.
   """
   try:
-    expr = ast.parse(spec, mode="eval").body  # pytype: disable=attribute-error
+    expr = ast.parse(spec, mode="eval").body
   except SyntaxError as e:
     raise ValueError(f"{spec!r} is not a valid preprocess op spec.") from e
-  op_class = _get_op_class(expr, available_ops)  # pytype: disable=wrong-arg-types
+  op_class = _get_op_class(expr, available_ops)  # pyrefly: ignore[bad-argument-type]
 
   # Simple case without arguments.
   if isinstance(expr, ast.Name):

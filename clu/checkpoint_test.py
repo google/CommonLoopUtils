@@ -27,7 +27,7 @@ def _make_dataset():
   inputs = tf.range(10.)[:, None]
   labels = inputs * 5. + tf.range(5.)[None, :]
   features = dict(x=inputs, y=labels)
-  return tf.data.Dataset.from_tensor_slices(features).repeat().batch(2)  # pyrefly: ignore[bad-argument-type]
+  return tf.data.Dataset.from_tensor_slices(features).repeat().batch(2)
 
 
 @flax.struct.dataclass
