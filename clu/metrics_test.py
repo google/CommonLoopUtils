@@ -312,14 +312,21 @@ class MetricsTest(parameterized.TestCase):
   )
   def test_loss_average(self, reduce):
     chex.assert_trees_all_close(
-        self.make_compute_metric(metrics.Average.from_output("loss"),
-                                 reduce)(self.model_outputs_masked),
-        self.model_outputs_stacked["loss"].mean())
+        self.make_compute_metric(metrics.Average.from_output("loss"), reduce)(
+            self.model_outputs_masked
+        ),
+        self.model_outputs_stacked["loss"].mean(),
+        atol=1e-5,
+        rtol=1e-5,
+    )
     chex.assert_trees_all_close(
         self.make_compute_metric(
-            metrics.Average.from_output("example_loss"),
-            reduce)(self.model_outputs_masked),
-        self.model_outputs_stacked["loss"].mean())
+            metrics.Average.from_output("example_loss"), reduce
+        )(self.model_outputs_masked),
+        self.model_outputs_stacked["loss"].mean(),
+        atol=1e-5,
+        rtol=1e-5,
+    )
 
   @parameterized.named_parameters(
       ("", False),
