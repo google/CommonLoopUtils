@@ -28,6 +28,10 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
+    - name: Clean pip cache
+      run: pip cache purge
+    - name: Check disk space
+      run: df -h
     - name: Install dependencies
       run: |
         pip install .
