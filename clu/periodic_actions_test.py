@@ -80,6 +80,21 @@ class ReportProgressTest(parameterized.TestCase):
         logs.output, ["INFO:absl:Setting work unit notes: 8.3 steps/s"]
     )
 
+  @parameterized.named_parameters(
+      ("_slow", 7.0, "0.14 steps/s"),
+      ("_below_threshold", 3.5, "0.29 steps/s"),
+      ("_above_threshold", 3.2, "0.3 steps/s"),
+  )
+  def test_steps_per_sec_precision(self, secs_per_step, expected):
+    report = periodic_actions.ReportProgress(every_steps=2)
+    t = time.monotonic()
+    with self.assertLogs(level="INFO") as logs:
+      self.assertFalse(report(1, t))
+      self.assertTrue(report(2, t + secs_per_step))
+    self.assertEqual(
+        logs.output, [f"INFO:absl:Setting work unit notes: {expected}"]
+    )
+
   def test_with_persistent_notes(self):
     report = periodic_actions.ReportProgress(every_steps=2)
     report.set_persistent_notes("Hello world")
@@ -147,8 +162,8 @@ class ReportProgressTest(parameterized.TestCase):
     self.assertEqual(
         logs.output,
         [
-            "INFO:absl:Setting work unit notes: 0.2 steps/s, 20.0% (2/10), ETA:"
-            " 0m (0m : 50.0% test1, 25.0% test2)"
+            "INFO:absl:Setting work unit notes: 0.25 steps/s, 20.0% (2/10),"
+            " ETA: 0m (0m : 50.0% test1, 25.0% test2)"
         ],
     )
 

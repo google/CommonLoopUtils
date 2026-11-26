@@ -204,7 +204,9 @@ class ReportProgress(PeriodicAction):
 
   def _apply(self, step: int, t: float):
     steps_per_sec = (step - self._previous_step) / (t - self._previous_time)
-    message = f"{steps_per_sec:.1f} steps/s"
+    # One decimal rounds slow rates too coarsely (e.g. 0.14 -> "0.1").
+    precision = 2 if steps_per_sec < 0.3 else 1
+    message = f"{steps_per_sec:.{precision}f} steps/s"
     if self._num_train_steps:
       eta_seconds = (self._num_train_steps - step) / steps_per_sec
       message += (f", {100 * step / self._num_train_steps:.1f}% "
