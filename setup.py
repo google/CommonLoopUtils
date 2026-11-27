@@ -29,7 +29,9 @@ if sys.version_info < (3, 10):
   sys.exit("Python < 3.10 not supported anymore!")
 
 tests_require = [
+    "chex",
     "pytest",
+    "tensorboard",
     "tensorflow",
     "tensorflow_datasets",
     "torch>=2.0.0",

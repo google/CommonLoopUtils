@@ -518,7 +518,9 @@ class MetricsTest(parameterized.TestCase):
 
   def test_collection_mixed_async(self):
     metric = CollectionMixed.empty()
-    pool = asynclib.Pool()
+    # Single worker: concurrent merge() calls would race on `metric` and drop an
+    # update.
+    pool = asynclib.Pool(max_workers=1)
 
     @pool
     def merge(update):
